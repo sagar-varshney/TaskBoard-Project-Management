@@ -1,0 +1,114 @@
+const bcrypt = require("bcryptjs");
+const { pool } = require("../config/db");
+const AppError = require("../utils/app-error");
+const { signToken } = require("../utils/jwt");
+
+function validateRegisterInput(body) {
+  const { email, password, firstName, lastName } = body;
+
+  if (!email || !password || !firstName || !lastName) {
+    throw new AppError("Email, password, firstName and lastName are required", 400);
+  }
+
+  if (!email.includes("@")) {
+    throw new AppError("Please provide a valid email", 400);
+  }
+
+  if (password.length < 8) {
+    throw new AppError("Password must be at least 8 characters", 400);
+  }
+}
+
+function validateLoginInput(body) {
+  const { email, password } = body;
+
+  if (!email || !password) {
+    throw new AppError("Email and password are required", 400);
+  }
+}
+
+async function register(req, res, next) {
+  try {
+    validateRegisterInput(req.body);
+
+    const { email, password, firstName, lastName } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const [existingUsers] = await pool.execute(
+      "SELECT id FROM users WHERE email = ?",
+      [normalizedEmail]
+    );
+
+    if (existingUsers.length > 0) {
+      throw new AppError("Email is already registered", 409);
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const [result] = await pool.execute(
+      "INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)",
+      [normalizedEmail, passwordHash, firstName.trim(), lastName.trim()]
+    );
+
+    const user = {
+      id: result.insertId,
+      email: normalizedEmail,
+      first_name: firstName.trim(),
+      last_name: lastName.trim()
+    };
+
+    res.status(201).json({
+      message: "Registered successfully",
+      token: signToken(user),
+      user
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function login(req, res, next) {
+  try {
+    validateLoginInput(req.body);
+
+    const { email, password } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const [rows] = await pool.execute(
+      "SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?",
+      [normalizedEmail]
+    );
+
+    if (rows.length === 0) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    const user = rows[0];
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordMatches) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    delete user.password_hash;
+
+    res.json({
+      message: "Logged in successfully",
+      token: signToken(user),
+      user
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function me(req, res) {
+  res.json({
+    user: req.user
+  });
+}
+
+module.exports = {
+  register,
+  login,
+  me
+};
