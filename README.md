@@ -1,4 +1,4 @@
-# TaskBoard Authentication
+# TaskBoard
 
 TaskBoard is a JIRA-inspired project management application. The current milestone focuses on user authentication with a Next.js frontend, an Express backend, JWT tokens, bcrypt password hashing, and MySQL.
 
