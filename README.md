@@ -1,63 +1,212 @@
-# JIRA Clone Backend
+# TaskBoard Authentication
 
-This is a starter backend for a JIRA clone. It focuses on JWT authentication, MySQL database design, and REST APIs.
+TaskBoard is a JIRA-inspired project management application. The current milestone focuses on user authentication with a Next.js frontend, an Express backend, JWT tokens, bcrypt password hashing, and MySQL.
+
+## Current Scope
+
+- Register with email, password, first name, and last name
+- Login with email and password
+- Hash passwords before storing them in MySQL
+- Generate JWT tokens after successful registration or login
+- Verify JWT tokens before returning the current user
+- Test the protected profile route from the frontend
+
+Project and issue management will be expanded in a later milestone.
 
 ## Tech Stack
+
+### Frontend
+
+- Next.js
+- React
+- CSS
+- Fetch API
+- Browser `localStorage` for the demo JWT token
+
+### Backend
 
 - Node.js
 - Express.js
 - MySQL
-- JWT authentication
-- bcrypt password hashing
+- `mysql2`
+- `jsonwebtoken`
+- `bcryptjs`
+- `dotenv`
+- `cors`
+
+## Project Structure
+
+```text
+frontend/
+  app/
+    components/
+      AuthForm.js
+    globals.css
+    layout.js
+    page.js
+
+src/
+  config/
+    db.js
+  controllers/
+    auth.controller.js
+  middleware/
+    auth.middleware.js
+  routes/
+    auth.routes.js
+  utils/
+    app-error.js
+    jwt.js
+  app.js
+  server.js
+
+database/
+  schema.sql
+```
 
 ## Setup
 
-1. Install dependencies:
+### 1. Install Backend Dependencies
+
+From the project root:
 
 ```bash
 npm install
 ```
 
-2. Create the environment file:
+### 2. Configure Backend Environment Variables
+
+Create the backend environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Update `.env` with your MySQL username, password, database name, and JWT secret.
+Update `.env` with your MySQL credentials and JWT secret. The local backend currently runs on port `5001`.
 
-4. Create the database tables:
+Example:
+
+```env
+PORT=5001
+NODE_ENV=development
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=jira_clone
+
+JWT_SECRET=replace_this_with_a_long_random_secret
+JWT_EXPIRES_IN=1d
+```
+
+Do not commit `.env`.
+
+### 3. Create MySQL Tables
 
 ```bash
 mysql -u root -p < database/schema.sql
 ```
 
-5. Start the API:
+### 4. Start The Backend
 
 ```bash
 npm run dev
 ```
 
-The API runs on `http://localhost:5000` by default.
+Backend URL:
+
+```text
+http://localhost:5001
+```
+
+### 5. Install Frontend Dependencies
+
+Open a second terminal:
+
+```bash
+cd frontend
+npm install
+```
+
+### 6. Configure Frontend Environment Variables
+
+Create the frontend environment file:
+
+```bash
+cp .env.local.example .env.local
+```
+
+The default frontend config points to:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5001/api
+```
+
+### 7. Start The Frontend
+
+```bash
+npm run dev
+```
+
+Frontend URL:
+
+```text
+http://localhost:3000
+```
+
+## Authentication Flow
+
+### Register
+
+1. User enters email, password, first name, and last name.
+2. Backend validates the request.
+3. Backend checks that the email is not already registered.
+4. Backend hashes the password using bcrypt.
+5. Backend stores the new user in MySQL.
+6. Backend signs and returns a JWT token.
+7. Frontend stores the demo token in `localStorage`.
+
+### Login
+
+1. User enters email and password.
+2. Backend finds the user by email.
+3. Backend compares the password with the stored bcrypt hash.
+4. Backend signs and returns a JWT token when the password matches.
+5. Frontend stores the demo token in `localStorage`.
+
+### Protected Route
+
+1. Frontend sends the JWT in the Authorization header:
+
+```text
+Authorization: Bearer jwt_token
+```
+
+2. Backend middleware verifies the JWT signature and expiry.
+3. Backend fetches the current user from MySQL.
+4. Backend returns the user profile.
 
 ## Authentication APIs
 
 ### Register
 
-`POST /api/auth/register`
+```text
+POST /api/auth/register
+```
 
 Request body:
 
 ```json
 {
-  "email": "user@example.com",
+  "email": "sampleuser@example.com",
   "password": "password123",
-  "firstName": "Sagar",
-  "lastName": "Varshney"
+  "firstName": "samplename",
+  "lastName": "testname"
 }
 ```
 
-Response:
+Example response:
 
 ```json
 {
@@ -65,27 +214,29 @@ Response:
   "token": "jwt_token",
   "user": {
     "id": 1,
-    "email": "user@example.com",
-    "first_name": "Sagar",
-    "last_name": "Varshney"
+    "email": "sampleuser@example.com",
+    "first_name": "samplename",
+    "last_name": "testname"
   }
 }
 ```
 
 ### Login
 
-`POST /api/auth/login`
+```text
+POST /api/auth/login
+```
 
 Request body:
 
 ```json
 {
-  "email": "user@example.com",
+  "email": "sampleuser@example.com",
   "password": "password123"
 }
 ```
 
-Response:
+Example response:
 
 ```json
 {
@@ -93,87 +244,40 @@ Response:
   "token": "jwt_token",
   "user": {
     "id": 1,
-    "email": "user@example.com",
-    "first_name": "Sagar",
-    "last_name": "Varshney"
+    "email": "sampleuser@example.com",
+    "first_name": "samplename",
+    "last_name": "testname"
   }
 }
 ```
 
 ### Current User
 
-`GET /api/auth/me`
+```text
+GET /api/auth/me
+```
 
-Header:
+Required header:
 
 ```text
 Authorization: Bearer jwt_token
 ```
 
-## Project APIs
-
-All project APIs require the `Authorization: Bearer jwt_token` header.
-
-### List Projects
-
-`GET /api/projects`
-
-### Create Project
-
-`POST /api/projects`
-
-Request body:
+Example response:
 
 ```json
 {
-  "key": "JIRA",
-  "name": "JIRA Clone",
-  "description": "Internship backend project"
+  "user": {
+    "id": 1,
+    "email": "sampleuser@example.com",
+    "first_name": "samplename",
+    "last_name": "testname",
+    "created_at": "2026-06-01T00:00:00.000Z"
+  }
 }
 ```
 
-## Issue APIs
-
-All issue APIs require the `Authorization: Bearer jwt_token` header.
-
-### List Issues
-
-`GET /api/issues`
-
-Optional filter:
-
-`GET /api/issues?projectId=1`
-
-### Create Issue
-
-`POST /api/issues`
-
-Request body:
-
-```json
-{
-  "projectId": 1,
-  "assigneeId": 1,
-  "title": "Build login API",
-  "description": "Create JWT login endpoint",
-  "issueType": "task",
-  "priority": "high"
-}
-```
-
-### Update Issue Status
-
-`PATCH /api/issues/:id/status`
-
-Request body:
-
-```json
-{
-  "status": "in_progress"
-}
-```
-
-## Database Schema Design
+## Authentication Database Schema
 
 ### `users`
 
@@ -183,65 +287,40 @@ Stores registered users.
 | --- | --- | --- | --- |
 | `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment user id |
 | `email` | `VARCHAR(255)` | Unique | Used for login |
-| `password_hash` | `VARCHAR(255)` |  | Hashed password, never store plain password |
+| `password_hash` | `VARCHAR(255)` |  | Bcrypt hash; plain passwords are never stored |
 | `first_name` | `VARCHAR(100)` |  | User first name |
 | `last_name` | `VARCHAR(100)` |  | User last name |
 | `created_at` | `TIMESTAMP` |  | Created time |
 | `updated_at` | `TIMESTAMP` |  | Updated time |
-
-### `projects`
-
-Stores JIRA-style projects.
-
-| Column | Type | Key | Notes |
-| --- | --- | --- | --- |
-| `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment project id |
-| `project_key` | `VARCHAR(20)` | Unique | Short key like `JIRA` |
-| `name` | `VARCHAR(150)` |  | Project name |
-| `description` | `TEXT` |  | Optional description |
-| `owner_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id` |
-| `created_at` | `TIMESTAMP` |  | Created time |
-| `updated_at` | `TIMESTAMP` |  | Updated time |
-
-### `issues`
-
-Stores bugs, tasks, and stories.
-
-| Column | Type | Key | Notes |
-| --- | --- | --- | --- |
-| `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment issue id |
-| `project_id` | `BIGINT UNSIGNED` | Foreign Key | References `projects.id` |
-| `reporter_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id` |
-| `assignee_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id`, nullable |
-| `title` | `VARCHAR(255)` |  | Issue title |
-| `description` | `TEXT` |  | Optional details |
-| `issue_type` | `ENUM` |  | `bug`, `task`, or `story` |
-| `status` | `ENUM` |  | `todo`, `in_progress`, or `done` |
-| `priority` | `ENUM` |  | `low`, `medium`, `high`, or `critical` |
-| `created_at` | `TIMESTAMP` |  | Created time |
-| `updated_at` | `TIMESTAMP` |  | Updated time |
-
-## Relationships
-
-- One user can own many projects: `projects.owner_id -> users.id`
-- One project can have many issues: `issues.project_id -> projects.id`
-- One user can report many issues: `issues.reporter_id -> users.id`
-- One user can be assigned many issues: `issues.assignee_id -> users.id`
 
 ## Example curl Commands
 
 Register:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/register \
+curl -X POST http://localhost:5001/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123","firstName":"Sagar","lastName":"Varshney"}'
+  -d '{"email":"sampleuser@example.com","password":"password123","firstName":"samplename","lastName":"testname"}'
 ```
 
 Login:
 
 ```bash
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST http://localhost:5001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123"}'
+  -d '{"email":"sampleuser@example.com","password":"password123"}'
 ```
+
+Protected route:
+
+```bash
+curl http://localhost:5001/api/auth/me \
+  -H "Authorization: Bearer jwt_token"
+```
+
+## Security Notes
+
+- Plain passwords are never stored in MySQL.
+- JWT secrets and database passwords belong only in `.env`.
+- `.env` and `frontend/.env.local` are ignored by Git.
+- `localStorage` is used for this development milestone. A production version should consider secure `HttpOnly` cookies to reduce token exposure from cross-site scripting attacks.
