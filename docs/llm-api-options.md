@@ -4,7 +4,7 @@ Reviewed on June 1, 2026.
 
 Do not commit a real LLM API key. Each developer should create a personal key and store it in `.env`.
 
-## Recommended Starting Point: Google Gemini API
+## Starting Point: Google Gemini API
 
 Use the Gemini Developer API for the first TaskBoard AI feature.
 
