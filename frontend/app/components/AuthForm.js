@@ -38,7 +38,7 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
   }
 
   return (
-    <form className="auth-form" onSubmit={handleSubmit}>
+    <form className="auth-form" autoComplete="off" onSubmit={handleSubmit}>
       <label>
         Email
         <input
@@ -47,6 +47,7 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
           placeholder="you@example.com"
           value={formValues.email}
           onChange={updateField}
+          autoComplete="off"
           required
         />
       </label>
@@ -59,6 +60,7 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
           placeholder="Minimum 8 characters"
           value={formValues.password}
           onChange={updateField}
+          autoComplete="off"
           minLength={8}
           required
         />

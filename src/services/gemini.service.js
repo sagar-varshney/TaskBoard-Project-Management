@@ -1,0 +1,71 @@
+const AppError = require("../utils/app-error");
+
+const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+
+function parseJsonResponse(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new AppError("LLM returned an unexpected response format", 502);
+  }
+}
+
+async function summarizeTicket(ticket) {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new AppError("Gemini API key is not configured", 503);
+  }
+
+  const prompt = `
+You are assisting a ticket management dashboard.
+Analyze this ticket and return only valid JSON with these fields:
+- summary: a concise one-sentence summary
+- suggestedPriority: one of low, medium, high, critical
+- nextAction: one practical next step
+
+Ticket title: ${ticket.title}
+Ticket description: ${ticket.description || "No description provided"}
+Current type: ${ticket.issue_type}
+Current priority: ${ticket.priority}
+Current status: ${ticket.status}
+`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const providerMessage = data.error?.message || "Gemini request failed";
+    throw new AppError(providerMessage, 502);
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new AppError("Gemini did not return a ticket summary", 502);
+  }
+
+  return parseJsonResponse(text);
+}
+
+module.exports = {
+  summarizeTicket
+};

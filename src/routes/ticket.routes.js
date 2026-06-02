@@ -1,10 +1,10 @@
 const express = require("express");
 const {
   createIssue,
+  createIssueSummary,
   getIssue,
   listIssues,
-  updateIssue,
-  updateIssueStatus
+  updateIssue
 } = require("../controllers/issue.controller");
 const { authenticate } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
@@ -16,6 +16,6 @@ router.get("/", listIssues);
 router.get("/:id", getIssue);
 router.post("/", createIssue);
 router.patch("/:id", requireRole("admin"), updateIssue);
-router.patch("/:id/status", requireRole("admin"), updateIssueStatus);
+router.post("/:id/ai-summary", requireRole("admin"), createIssueSummary);
 
 module.exports = router;

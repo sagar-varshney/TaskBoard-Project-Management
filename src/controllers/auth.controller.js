@@ -45,7 +45,7 @@ async function register(req, res, next) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const [result] = await pool.execute(
-      "INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)",
+      "INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, 'member')",
       [normalizedEmail, passwordHash, firstName.trim(), lastName.trim()]
     );
 
@@ -53,7 +53,8 @@ async function register(req, res, next) {
       id: result.insertId,
       email: normalizedEmail,
       first_name: firstName.trim(),
-      last_name: lastName.trim()
+      last_name: lastName.trim(),
+      role: "member"
     };
 
     res.status(201).json({
@@ -74,7 +75,9 @@ async function login(req, res, next) {
     const normalizedEmail = email.toLowerCase().trim();
 
     const [rows] = await pool.execute(
-      "SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?",
+      `SELECT id, email, password_hash, first_name, last_name, role
+       FROM users
+       WHERE email = ? AND deleted_at IS NULL`,
       [normalizedEmail]
     );
 

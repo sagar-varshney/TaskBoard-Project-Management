@@ -27,7 +27,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -147,6 +149,28 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(12, 102, 228, 0.14);
 }
 
+select,
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  min-height: 42px;
+  outline: none;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+select:focus,
+textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(12, 102, 228, 0.14);
+}
+
 .name-grid {
   display: grid;
   gap: 14px;
@@ -210,6 +234,318 @@ pre {
   white-space: pre-wrap;
 }
 
+.dashboard-shell {
+  background: #f4f6f9;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #172b4d;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  padding: 22px 16px;
+}
+
+.sidebar-brand {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.sidebar-logo {
+  align-items: center;
+  background: #ffffff;
+  border-radius: 6px;
+  color: var(--blue);
+  display: flex;
+  font-size: 18px;
+  font-weight: 800;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-link {
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.74);
+  padding: 10px;
+  text-decoration: none;
+}
+
+.nav-link.active,
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.sidebar-user {
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  padding: 10px;
+}
+
+.sidebar-user small {
+  color: rgba(255, 255, 255, 0.68);
+  text-transform: capitalize;
+}
+
+.dashboard-content {
+  display: grid;
+  gap: 22px;
+  padding: 28px;
+}
+
+.dashboard-header,
+.dashboard-controls,
+.column-header,
+.ticket-card-header,
+.ticket-card footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.dashboard-header h1,
+.dashboard-form h2,
+.column-header h2,
+.ticket-card h3 {
+  margin: 0;
+}
+
+.dashboard-header h1 {
+  font-size: 30px;
+}
+
+.dashboard-eyebrow {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.logout-button {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.dashboard-controls {
+  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  gap: 16px;
+  padding: 14px 0;
+}
+
+.dashboard-controls label {
+  min-width: 280px;
+}
+
+.role-note {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.role-note span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-message {
+  background: #e9f2ff;
+  border-left: 4px solid var(--blue);
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric-grid div {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.metric-grid span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metric-grid strong {
+  font-size: 26px;
+}
+
+.ticket-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ticket-column {
+  background: #ebedf0;
+  min-height: 330px;
+  padding: 12px;
+}
+
+.column-header {
+  padding: 2px 2px 12px;
+}
+
+.column-header h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.column-header span {
+  background: #dfe3e8;
+  border-radius: 10px;
+  font-size: 12px;
+  min-width: 24px;
+  padding: 3px 7px;
+  text-align: center;
+}
+
+.ticket-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ticket-card {
+  background: #ffffff;
+  border: 1px solid #d9dee7;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.ticket-card-header span {
+  color: var(--blue-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ticket-card-header small,
+.ticket-card footer span {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.ticket-card h3 {
+  font-size: 15px;
+}
+
+.ticket-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ticket-card footer {
+  gap: 8px;
+}
+
+.ticket-card select {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 4px 6px;
+  width: auto;
+}
+
+.ticket-actions {
+  align-items: stretch;
+  display: grid;
+  gap: 6px;
+}
+
+.ticket-actions button {
+  background: #e9f2ff;
+  border: 0;
+  color: var(--blue-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.ai-insight {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.ai-insight h2,
+.ai-insight p {
+  margin: 0;
+}
+
+.ai-insight h2 {
+  font-size: 18px;
+}
+
+.ai-insight p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.empty-column {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 12px 2px;
+}
+
+.dashboard-forms {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);
+}
+
+.dashboard-form {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.dashboard-form h2 {
+  font-size: 20px;
+}
+
+.form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
 @media (max-width: 900px) {
   .auth-page {
     grid-template-columns: 1fr;
@@ -226,6 +562,42 @@ pre {
   }
 
   .name-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    gap: 14px;
+  }
+
+  .sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .sidebar-user {
+    margin-top: 0;
+  }
+
+  .dashboard-content {
+    padding: 18px;
+  }
+
+  .dashboard-controls {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .role-note {
+    justify-items: start;
+  }
+
+  .metric-grid,
+  .ticket-board,
+  .dashboard-forms {
     grid-template-columns: 1fr;
   }
 }

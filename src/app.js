@@ -5,6 +5,7 @@ const express = require("express");
 const authRoutes = require("./routes/auth.routes");
 const issueRoutes = require("./routes/issue.routes");
 const projectRoutes = require("./routes/project.routes");
+const ticketRoutes = require("./routes/ticket.routes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/issues", issueRoutes);
+app.use("/api/tickets", ticketRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

@@ -1,6 +1,6 @@
 # TaskBoard
 
-TaskBoard is a JIRA-inspired project management application. The current milestone focuses on user authentication with a Next.js frontend, an Express backend, JWT tokens, bcrypt password hashing, and MySQL.
+TaskBoard is a JIRA-inspired project management application. It currently includes JWT authentication, role-aware ticket APIs, soft-delete schema support, and a Next.js ticket dashboard.
 
 ## Current Scope
 
@@ -10,8 +10,12 @@ TaskBoard is a JIRA-inspired project management application. The current milesto
 - Generate JWT tokens after successful registration or login
 - Verify JWT tokens before returning the current user
 - Test the protected profile route from the frontend
+- Create and list projects
+- Create, list, and get tickets
+- Edit tickets as an admin
+- View ticket counts and status columns on the dashboard
 
-Project and issue management will be expanded in a later milestone.
+LLM-powered ticket assistance will be expanded in a later milestone.
 
 ## Tech Stack
 
@@ -106,6 +110,18 @@ Do not commit `.env`.
 
 ```bash
 mysql -u root -p < database/schema.sql
+```
+
+If your database was created before roles and soft deletes were added, run the one-time migration:
+
+```bash
+mysql -u root -p < database/migrations/001_add_roles_and_soft_delete.sql
+```
+
+Promote only a trusted user when admin ticket editing is needed:
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'trusted-user@example.com';
 ```
 
 ### 4. Start The Backend
@@ -290,8 +306,89 @@ Stores registered users.
 | `password_hash` | `VARCHAR(255)` |  | Bcrypt hash; plain passwords are never stored |
 | `first_name` | `VARCHAR(100)` |  | User first name |
 | `last_name` | `VARCHAR(100)` |  | User last name |
+| `role` | `ENUM('member', 'admin')` |  | Members can read/create tickets; admins can also edit tickets |
+| `deleted_at` | `TIMESTAMP` |  | Null for active users; timestamp for soft-deleted users |
 | `created_at` | `TIMESTAMP` |  | Created time |
 | `updated_at` | `TIMESTAMP` |  | Updated time |
+
+## Ticket APIs
+
+All ticket APIs require:
+
+```text
+Authorization: Bearer jwt_token
+```
+
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/tickets` | Authenticated user | List tickets |
+| `GET` | `/api/tickets/:id` | Authenticated user | Get one ticket |
+| `POST` | `/api/tickets` | Authenticated user | Create a ticket |
+| `PATCH` | `/api/tickets/:id` | Admin only | Edit ticket fields or status |
+| `POST` | `/api/tickets/:id/ai-summary` | Admin only | Generate a Gemini ticket insight |
+
+Optional list filters:
+
+```text
+GET /api/tickets?projectId=1
+GET /api/tickets?status=in_progress
+```
+
+Create ticket body:
+
+```json
+{
+  "projectId": 1,
+  "title": "Build dashboard",
+  "description": "Add ticket status columns",
+  "issueType": "task",
+  "priority": "high"
+}
+```
+
+Edit ticket body:
+
+```json
+{
+  "status": "in_progress",
+  "priority": "critical"
+}
+```
+
+The existing `/api/issues` routes remain available for compatibility.
+
+## Ticket Database Schema
+
+Tickets are stored in the existing `issues` table.
+
+| Column | Type | Key | Notes |
+| --- | --- | --- | --- |
+| `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment ticket id |
+| `project_id` | `BIGINT UNSIGNED` | Foreign Key | References `projects.id` |
+| `reporter_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id` |
+| `assignee_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id`, nullable |
+| `title` | `VARCHAR(255)` |  | Ticket title |
+| `description` | `TEXT` |  | Optional details |
+| `issue_type` | `ENUM` |  | `bug`, `task`, or `story` |
+| `status` | `ENUM` |  | `todo`, `in_progress`, or `done` |
+| `priority` | `ENUM` |  | `low`, `medium`, `high`, or `critical` |
+| `created_at` | `TIMESTAMP` |  | Created time |
+| `updated_at` | `TIMESTAMP` |  | Updated time |
+
+## LLM Research
+
+Current free-tier provider research and official links are documented in:
+
+```text
+docs/llm-api-options.md
+```
+
+The Gemini endpoint is wired but requires a personal key in backend `.env`:
+
+```env
+GEMINI_API_KEY=your_personal_gemini_api_key
+GEMINI_MODEL=gemini-2.5-flash-lite
+```
 
 ## Example curl Commands
 

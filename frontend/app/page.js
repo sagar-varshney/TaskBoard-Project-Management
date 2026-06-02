@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AuthForm from "./components/AuthForm";
+import Dashboard from "./components/Dashboard";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
@@ -11,6 +12,15 @@ export default function HomePage() {
   const [token, setToken] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("jiraCloneToken");
+
+    if (savedToken) {
+      setToken(savedToken);
+      loadProfile(savedToken);
+    }
+  }, []);
 
   async function submitAuth(formValues) {
     setIsLoading(true);
@@ -48,8 +58,11 @@ export default function HomePage() {
     }
   }
 
-  async function loadProfile() {
-    const savedToken = token || localStorage.getItem("jiraCloneToken");
+  async function loadProfile(providedToken) {
+    const savedToken =
+      typeof providedToken === "string"
+        ? providedToken
+        : token || localStorage.getItem("jiraCloneToken");
 
     if (!savedToken) {
       setMessage("Login or register first to get a JWT token.");
@@ -78,6 +91,17 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function logout() {
+    localStorage.removeItem("jiraCloneToken");
+    setToken("");
+    setCurrentUser(null);
+    setMessage("");
+  }
+
+  if (currentUser && token) {
+    return <Dashboard token={token} user={currentUser} onLogout={logout} />;
   }
 
   return (

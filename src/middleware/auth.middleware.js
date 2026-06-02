@@ -14,7 +14,9 @@ async function authenticate(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     const [rows] = await pool.execute(
-      "SELECT id, email, first_name, last_name, created_at FROM users WHERE id = ?",
+      `SELECT id, email, first_name, last_name, role, created_at
+       FROM users
+       WHERE id = ? AND deleted_at IS NULL`,
       [payload.userId]
     );
 
