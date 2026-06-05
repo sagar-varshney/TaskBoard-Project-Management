@@ -12,15 +12,24 @@ const columns = [
 function emptyTicketForm(projectId = "") {
   return {
     projectId,
+    assigneeId: "",
+    ownerId: "",
+    sprintId: "",
+    scrumTeamId: "",
     title: "",
     description: "",
     issueType: "task",
-    priority: "medium"
+    priority: "medium",
+    impact: "",
+    fixPlan: ""
   };
 }
 
 export default function Dashboard({ token, user, onLogout }) {
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [sprints, setSprints] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [message, setMessage] = useState("");
@@ -30,6 +39,18 @@ export default function Dashboard({ token, user, onLogout }) {
     key: "",
     name: "",
     description: ""
+  });
+  const [sprintForm, setSprintForm] = useState({
+    projectId: "",
+    name: "",
+    goal: "",
+    status: "planned"
+  });
+  const [teamForm, setTeamForm] = useState({
+    projectId: "",
+    name: "",
+    description: "",
+    memberIds: []
   });
   const [ticketForm, setTicketForm] = useState(emptyTicketForm());
 
@@ -68,17 +89,25 @@ export default function Dashboard({ token, user, onLogout }) {
 
     try {
       const ticketQuery = projectId ? `?projectId=${projectId}` : "";
-      const [projectData, ticketData] = await Promise.all([
+      const [projectData, ticketData, userData, sprintData, teamData] = await Promise.all([
         apiRequest("/projects"),
-        apiRequest(`/tickets${ticketQuery}`)
+        apiRequest(`/tickets${ticketQuery}`),
+        apiRequest("/users"),
+        apiRequest("/sprints"),
+        apiRequest("/teams")
       ]);
 
       setProjects(projectData.projects);
       setTickets(ticketData.tickets);
+      setUsers(userData.users);
+      setSprints(sprintData.sprints);
+      setTeams(teamData.teams);
 
       if (!projectId && projectData.projects.length > 0) {
         const firstProjectId = String(projectData.projects[0].id);
         setTicketForm((current) => ({ ...current, projectId: firstProjectId }));
+        setSprintForm((current) => ({ ...current, projectId: firstProjectId }));
+        setTeamForm((current) => ({ ...current, projectId: firstProjectId }));
       }
     } catch (error) {
       setMessage(error.message);
@@ -123,6 +152,38 @@ export default function Dashboard({ token, user, onLogout }) {
     }
   }
 
+  async function createSprint(event) {
+    event.preventDefault();
+
+    try {
+      await apiRequest("/sprints", {
+        method: "POST",
+        body: JSON.stringify(sprintForm)
+      });
+      setSprintForm({ projectId: sprintForm.projectId, name: "", goal: "", status: "planned" });
+      setMessage("Sprint created successfully.");
+      await loadDashboard(selectedProjectId);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function createTeam(event) {
+    event.preventDefault();
+
+    try {
+      await apiRequest("/teams", {
+        method: "POST",
+        body: JSON.stringify(teamForm)
+      });
+      setTeamForm({ projectId: teamForm.projectId, name: "", description: "", memberIds: [] });
+      setMessage("Scrum team created successfully.");
+      await loadDashboard(selectedProjectId);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   async function updateTicketStatus(ticketId, status) {
     try {
       await apiRequest(`/tickets/${ticketId}`, {
@@ -159,6 +220,8 @@ export default function Dashboard({ token, user, onLogout }) {
     const projectId = event.target.value;
     setSelectedProjectId(projectId);
     setTicketForm(emptyTicketForm(projectId));
+    setSprintForm((current) => ({ ...current, projectId }));
+    setTeamForm((current) => ({ ...current, projectId }));
     loadDashboard(projectId);
   }
 
@@ -166,6 +229,8 @@ export default function Dashboard({ token, user, onLogout }) {
     result[column.key] = tickets.filter((ticket) => ticket.status === column.key);
     return result;
   }, {});
+  const selectedProjectSprints = sprints.filter((sprint) => String(sprint.project_id) === String(ticketForm.projectId));
+  const selectedProjectTeams = teams.filter((team) => String(team.project_id) === String(ticketForm.projectId));
 
   return (
     <main className="dashboard-shell">
@@ -176,6 +241,7 @@ export default function Dashboard({ token, user, onLogout }) {
         </div>
         <nav aria-label="Dashboard navigation">
           <a className="nav-link active" href="#board">Board</a>
+          <a className="nav-link" href="/my-tickets">My tickets</a>
           <a className="nav-link" href="#create-ticket">Create ticket</a>
           <a className="nav-link" href="#create-project">Projects</a>
         </nav>
@@ -210,7 +276,7 @@ export default function Dashboard({ token, user, onLogout }) {
           </label>
           <div className="role-note">
             Signed in as <strong>{user.role}</strong>
-            <span>{user.role === "admin" ? "Ticket editing enabled" : "Ticket editing requires admin role"}</span>
+            <span>{user.role === "admin" || user.role === "developer" ? "Ticket status editing enabled" : "Ticket editing requires admin or developer role"}</span>
           </div>
         </section>
 
@@ -246,14 +312,16 @@ export default function Dashboard({ token, user, onLogout }) {
                 {ticketsByStatus[column.key].map((ticket) => (
                   <article className="ticket-card" key={ticket.id}>
                     <div className="ticket-card-header">
-                      <span>{ticket.ticket_key}</span>
+                      <a href={`/tickets/${ticket.id}`} target="_blank" rel="noreferrer">
+                        {ticket.ticket_key}
+                      </a>
                       <small>{ticket.priority}</small>
                     </div>
                     <h3>{ticket.title}</h3>
                     <p>{ticket.description || "No description"}</p>
                     <footer>
                       <span>{ticket.issue_type}</span>
-                      {user.role === "admin" ? (
+                      {user.role === "admin" || user.role === "developer" ? (
                         <div className="ticket-actions">
                           <select
                             aria-label={`Update ${ticket.ticket_key} status`}
@@ -264,9 +332,11 @@ export default function Dashboard({ token, user, onLogout }) {
                               <option key={status.key} value={status.key}>{status.label}</option>
                             ))}
                           </select>
-                          <button type="button" onClick={() => generateTicketSummary(ticket.id)}>
-                            AI insight
-                          </button>
+                          {user.role === "admin" ? (
+                            <button type="button" onClick={() => generateTicketSummary(ticket.id)}>
+                              AI insight
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </footer>
@@ -339,6 +409,78 @@ export default function Dashboard({ token, user, onLogout }) {
                 </select>
               </label>
             </div>
+            <div className="form-row">
+              <label>
+                Assignee
+                <select
+                  value={ticketForm.assigneeId}
+                  onChange={(event) => setTicketForm({ ...ticketForm, assigneeId: event.target.value })}
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.first_name} {user.last_name} - {user.role}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Owner
+                <select
+                  value={ticketForm.ownerId}
+                  onChange={(event) => setTicketForm({ ...ticketForm, ownerId: event.target.value })}
+                >
+                  <option value="">Current user</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.first_name} {user.last_name} - {user.role}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="form-row">
+              <label>
+                Sprint
+                <select
+                  value={ticketForm.sprintId}
+                  onChange={(event) => setTicketForm({ ...ticketForm, sprintId: event.target.value })}
+                >
+                  <option value="">No sprint</option>
+                  {selectedProjectSprints.map((sprint) => (
+                    <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Scrum team
+                <select
+                  value={ticketForm.scrumTeamId}
+                  onChange={(event) => setTicketForm({ ...ticketForm, scrumTeamId: event.target.value })}
+                >
+                  <option value="">No team</option>
+                  {selectedProjectTeams.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Impact
+              <textarea
+                placeholder="Who or what is affected by this issue?"
+                value={ticketForm.impact}
+                onChange={(event) => setTicketForm({ ...ticketForm, impact: event.target.value })}
+              />
+            </label>
+            <label>
+              Fix plan
+              <textarea
+                placeholder="What is being done to fix this ticket?"
+                value={ticketForm.fixPlan}
+                onChange={(event) => setTicketForm({ ...ticketForm, fixPlan: event.target.value })}
+              />
+            </label>
             <button className="primary-action" type="submit">Create ticket</button>
           </form>
 
@@ -374,6 +516,114 @@ export default function Dashboard({ token, user, onLogout }) {
             </label>
             <button className="secondary-action" type="submit">Create project</button>
           </form>
+
+          {user.role === "admin" ? (
+            <>
+              <form className="dashboard-form" onSubmit={createSprint}>
+                <div>
+                  <p className="dashboard-eyebrow">Sprint management</p>
+                  <h2>Create sprint</h2>
+                </div>
+                <label>
+                  Project
+                  <select
+                    required
+                    value={sprintForm.projectId}
+                    onChange={(event) => setSprintForm({ ...sprintForm, projectId: event.target.value })}
+                  >
+                    <option value="">Select a project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>{project.project_key} - {project.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Sprint name
+                  <input
+                    required
+                    placeholder="Sprint 2"
+                    value={sprintForm.name}
+                    onChange={(event) => setSprintForm({ ...sprintForm, name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Goal
+                  <textarea
+                    value={sprintForm.goal}
+                    onChange={(event) => setSprintForm({ ...sprintForm, goal: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={sprintForm.status}
+                    onChange={(event) => setSprintForm({ ...sprintForm, status: event.target.value })}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </label>
+                <button className="secondary-action" type="submit">Create sprint</button>
+              </form>
+
+              <form className="dashboard-form" onSubmit={createTeam}>
+                <div>
+                  <p className="dashboard-eyebrow">Scrum team management</p>
+                  <h2>Create scrum team</h2>
+                </div>
+                <label>
+                  Project
+                  <select
+                    required
+                    value={teamForm.projectId}
+                    onChange={(event) => setTeamForm({ ...teamForm, projectId: event.target.value })}
+                  >
+                    <option value="">Select a project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>{project.project_key} - {project.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Team name
+                  <input
+                    required
+                    placeholder="Platform Team"
+                    value={teamForm.name}
+                    onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Description
+                  <textarea
+                    value={teamForm.description}
+                    onChange={(event) => setTeamForm({ ...teamForm, description: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Members
+                  <select
+                    multiple
+                    value={teamForm.memberIds}
+                    onChange={(event) =>
+                      setTeamForm({
+                        ...teamForm,
+                        memberIds: Array.from(event.target.selectedOptions, (option) => option.value)
+                      })
+                    }
+                  >
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.first_name} {user.last_name} - {user.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="secondary-action" type="submit">Create team</button>
+              </form>
+            </>
+          ) : null}
         </section>
       </section>
     </main>

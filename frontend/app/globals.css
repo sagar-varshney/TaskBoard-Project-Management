@@ -359,7 +359,7 @@ pre {
 .role-note {
   display: grid;
   gap: 4px;
-  justify-items: end;
+  justify-items: flex-end;
 }
 
 .role-note span {
@@ -441,10 +441,15 @@ pre {
   padding: 12px;
 }
 
-.ticket-card-header span {
+.ticket-card-header a {
   color: var(--blue-dark);
   font-size: 12px;
   font-weight: 700;
+  text-decoration: none;
+}
+
+.ticket-card-header a:hover {
+  text-decoration: underline;
 }
 
 .ticket-card-header small,
@@ -546,6 +551,190 @@ pre {
   grid-template-columns: 1fr 1fr;
 }
 
+.ticket-detail-shell {
+  background: var(--bg);
+  color: var(--ink);
+  display: grid;
+  gap: 22px;
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.ticket-detail-header {
+  align-items: flex-end;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.ticket-detail-header h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+.compact-link {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  text-decoration: none;
+}
+
+.ticket-detail-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.ticket-main-panel,
+.ticket-side-panel,
+.ticket-edit-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.ticket-main-panel h2,
+.ticket-side-panel h2,
+.ticket-edit-panel h2,
+.comments-panel h2 {
+  font-size: 20px;
+}
+
+.ticket-main-panel p,
+.comment-item p {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.ticket-field-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.ticket-field-list div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+}
+
+.ticket-field-list dt {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.ticket-field-list dd {
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-transform: capitalize;
+}
+
+.comments-panel,
+.comment-form,
+.comment-list,
+.ticket-edit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.comment-item {
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.comment-item small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.comment-meta,
+.button-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.comment-meta span {
+  background: #fff4d6;
+  color: #7a5200;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 7px;
+}
+
+.comment-edit {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-check {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.inline-check input {
+  min-height: auto;
+  width: auto;
+}
+
+.danger-action {
+  background: #fff0f0;
+  color: #a12323;
+}
+
+.activity-list,
+.my-ticket-list {
+  display: grid;
+  gap: 12px;
+}
+
+.activity-item {
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.activity-item span,
+.activity-item small {
+  color: var(--muted);
+}
+
+.my-ticket-card h2 {
+  font-size: 18px;
+}
+
+.compact-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ticket-edit-panel {
+  max-width: 980px;
+}
+
+.role-note.standalone {
+  align-items: flex-start;
+  justify-items: flex-start;
+}
+
 @media (max-width: 900px) {
   .auth-page {
     grid-template-columns: 1fr;
@@ -592,12 +781,22 @@ pre {
   }
 
   .role-note {
-    justify-items: start;
+    justify-items: flex-start;
   }
 
   .metric-grid,
   .ticket-board,
-  .dashboard-forms {
+  .dashboard-forms,
+  .ticket-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-shell {
+    padding: 18px;
+  }
+
+  .ticket-detail-header {
+    align-items: stretch;
+    display: grid;
   }
 }
