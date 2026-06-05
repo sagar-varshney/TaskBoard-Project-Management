@@ -1,6 +1,6 @@
 # TaskBoard
 
-TaskBoard is a JIRA-inspired project management application. It currently includes JWT authentication, role-aware ticket APIs, soft-delete schema support, and a Next.js ticket dashboard.
+TaskBoard is a JIRA-inspired project management application. It currently includes JWT authentication, role-aware ticket workflows, user soft delete support, project/ticket management, sprint and scrum team management, ticket comments, activity history, Gemini ticket insights, and a Next.js dashboard.
 
 ## Current Scope
 
@@ -12,10 +12,19 @@ TaskBoard is a JIRA-inspired project management application. It currently includ
 - Test the protected profile route from the frontend
 - Create and list projects
 - Create, list, and get tickets
-- Edit tickets as an admin
+- Open ticket details from linked ticket IDs
+- Edit ticket metadata as an admin
+- Delegate tickets to assignees and owners
+- Allow developers or delegated users to update ticket work progress
+- Add, edit, and delete ticket comments
+- Track ticket activity history
+- Create and assign sprints
+- Create and assign scrum teams
+- View personal work from the My Tickets page
 - View ticket counts and status columns on the dashboard
+- Generate Gemini AI ticket insights as an admin
 
-LLM-powered ticket assistance will be expanded in a later milestone.
+LLM-powered ticket assistance is currently wired through Gemini and can be expanded into deeper agentic workflows later.
 
 ## Tech Stack
 
@@ -45,6 +54,14 @@ frontend/
   app/
     components/
       AuthForm.js
+      Dashboard.js
+      MyTickets.js
+      TicketDetail.js
+    my-tickets/
+      page.js
+    tickets/
+      [id]/
+        page.js
     globals.css
     layout.js
     page.js
@@ -54,10 +71,22 @@ src/
     db.js
   controllers/
     auth.controller.js
+    issue.controller.js
+    project.controller.js
+    sprint.controller.js
+    team.controller.js
+    user.controller.js
   middleware/
     auth.middleware.js
+    role.middleware.js
   routes/
     auth.routes.js
+    issue.routes.js
+    project.routes.js
+    sprint.routes.js
+    team.routes.js
+    ticket.routes.js
+    user.routes.js
   utils/
     app-error.js
     jwt.js
@@ -65,6 +94,7 @@ src/
   server.js
 
 database/
+  migrations/
   schema.sql
 ```
 
@@ -118,10 +148,23 @@ If your database was created before roles and soft deletes were added, run the o
 mysql -u root -p < database/migrations/001_add_roles_and_soft_delete.sql
 ```
 
+If your database was created before ticket detail fields, comments, sprints, teams, and activity history were added, run these migrations in order:
+
+```bash
+mysql -u root -p < database/migrations/002_add_ticket_details_and_comments.sql
+mysql -u root -p < database/migrations/003_add_ticket_operations.sql
+```
+
 Promote only a trusted user when admin ticket editing is needed:
 
 ```sql
 UPDATE users SET role = 'admin' WHERE email = 'trusted-user@example.com';
+```
+
+Promote a developer user when work-progress updates are needed:
+
+```sql
+UPDATE users SET role = 'developer' WHERE email = 'developer@example.com';
 ```
 
 ### 4. Start The Backend
@@ -306,10 +349,18 @@ Stores registered users.
 | `password_hash` | `VARCHAR(255)` |  | Bcrypt hash; plain passwords are never stored |
 | `first_name` | `VARCHAR(100)` |  | User first name |
 | `last_name` | `VARCHAR(100)` |  | User last name |
-| `role` | `ENUM('member', 'admin')` |  | Members can read/create tickets; admins can also edit tickets |
+| `role` | `ENUM('member', 'developer', 'admin')` |  | Members can read/create tickets; developers can update work fields; admins can manage metadata |
 | `deleted_at` | `TIMESTAMP` |  | Null for active users; timestamp for soft-deleted users |
 | `created_at` | `TIMESTAMP` |  | Created time |
 | `updated_at` | `TIMESTAMP` |  | Updated time |
+
+## Role Rules
+
+| Role | Permissions |
+| --- | --- |
+| `member` | Register, login, create/read projects and tickets, comment, and update work fields only when assigned or set as owner |
+| `developer` | Update ticket work fields such as status, resolution, and fix plan; cannot change sprint/type/priority/header |
+| `admin` | Manage ticket metadata, assignee/owner delegation, sprints, teams, comments, and Gemini ticket insights |
 
 ## Ticket APIs
 
@@ -322,9 +373,15 @@ Authorization: Bearer jwt_token
 | Method | Route | Access | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/api/tickets` | Authenticated user | List tickets |
+| `GET` | `/api/tickets/my` | Authenticated user | List tickets reported by, assigned to, or owned by the current user |
 | `GET` | `/api/tickets/:id` | Authenticated user | Get one ticket |
 | `POST` | `/api/tickets` | Authenticated user | Create a ticket |
-| `PATCH` | `/api/tickets/:id` | Admin only | Edit ticket fields or status |
+| `PATCH` | `/api/tickets/:id` | Role-aware | Admin edits metadata; developer/delegated user updates work fields |
+| `GET` | `/api/tickets/:id/comments` | Authenticated user | List ticket comments |
+| `POST` | `/api/tickets/:id/comments` | Authenticated user | Add a comment |
+| `PATCH` | `/api/tickets/:id/comments/:commentId` | Author or admin | Edit a comment |
+| `DELETE` | `/api/tickets/:id/comments/:commentId` | Author or admin | Soft-delete a comment |
+| `GET` | `/api/tickets/:id/activity` | Authenticated user | List ticket activity history |
 | `POST` | `/api/tickets/:id/ai-summary` | Admin only | Generate a Gemini ticket insight |
 
 Optional list filters:
@@ -339,23 +396,60 @@ Create ticket body:
 ```json
 {
   "projectId": 1,
+  "assigneeId": 2,
+  "ownerId": 3,
+  "sprintId": 1,
+  "scrumTeamId": 1,
   "title": "Build dashboard",
   "description": "Add ticket status columns",
   "issueType": "task",
-  "priority": "high"
+  "priority": "high",
+  "impact": "Users cannot track work clearly",
+  "fixPlan": "Add dashboard columns and ticket detail view"
 }
 ```
 
-Edit ticket body:
+Admin metadata edit body:
+
+```json
+{
+  "title": "Fix login bug",
+  "issueType": "bug",
+  "priority": "critical",
+  "sprintId": 1,
+  "scrumTeamId": 1,
+  "assigneeId": 2,
+  "ownerId": 3,
+  "impact": "Users cannot sign in",
+  "description": "Login fails for valid credentials"
+}
+```
+
+Developer or delegated user work update body:
 
 ```json
 {
   "status": "in_progress",
-  "priority": "critical"
+  "resolution": "unresolved",
+  "fixPlan": "Investigating backend authentication flow"
 }
 ```
 
 The existing `/api/issues` routes remain available for compatibility.
+
+## Project, Sprint, Team, And User APIs
+
+All routes require a JWT.
+
+| Method | Route | Access | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/projects` | Authenticated user | List projects |
+| `POST` | `/api/projects` | Authenticated user | Create a project |
+| `GET` | `/api/users` | Authenticated user | List active users for delegation dropdowns |
+| `GET` | `/api/sprints` | Authenticated user | List sprints |
+| `POST` | `/api/sprints` | Admin only | Create a sprint |
+| `GET` | `/api/teams` | Authenticated user | List scrum teams |
+| `POST` | `/api/teams` | Admin only | Create a scrum team |
 
 ## Ticket Database Schema
 
@@ -367,13 +461,64 @@ Tickets are stored in the existing `issues` table.
 | `project_id` | `BIGINT UNSIGNED` | Foreign Key | References `projects.id` |
 | `reporter_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id` |
 | `assignee_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id`, nullable |
+| `owner_id` | `BIGINT UNSIGNED` | Foreign Key | References `users.id`, nullable |
+| `sprint_id` | `BIGINT UNSIGNED` | Foreign Key | References `sprints.id`, nullable |
+| `scrum_team_id` | `BIGINT UNSIGNED` | Foreign Key | References `scrum_teams.id`, nullable |
 | `title` | `VARCHAR(255)` |  | Ticket title |
 | `description` | `TEXT` |  | Optional details |
 | `issue_type` | `ENUM` |  | `bug`, `task`, or `story` |
 | `status` | `ENUM` |  | `todo`, `in_progress`, or `done` |
 | `priority` | `ENUM` |  | `low`, `medium`, `high`, or `critical` |
+| `resolution` | `ENUM` |  | `unresolved`, `fixed`, `wont_fix`, or `duplicate` |
+| `sprint` | `VARCHAR(120)` |  | Legacy/free-text sprint field |
+| `scrum_team` | `VARCHAR(120)` |  | Legacy/free-text team field |
+| `impact` | `TEXT` |  | Impact of the issue |
+| `fix_plan` | `TEXT` |  | What is being done to fix it |
 | `created_at` | `TIMESTAMP` |  | Created time |
 | `updated_at` | `TIMESTAMP` |  | Updated time |
+
+### `sprints`
+
+Stores real sprint records that tickets can reference.
+
+| Column | Type | Key | Notes |
+| --- | --- | --- | --- |
+| `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment sprint id |
+| `project_id` | `BIGINT UNSIGNED` | Foreign Key | References `projects.id` |
+| `name` | `VARCHAR(120)` | Unique per project | Sprint name |
+| `goal` | `TEXT` |  | Sprint goal |
+| `start_date` | `DATE` |  | Optional start date |
+| `end_date` | `DATE` |  | Optional end date |
+| `status` | `ENUM` |  | `planned`, `active`, or `completed` |
+
+### `scrum_teams` And `scrum_team_members`
+
+Stores scrum teams and the users assigned to those teams.
+
+### `issue_comments`
+
+Stores ticket comments.
+
+| Column | Type | Key | Notes |
+| --- | --- | --- | --- |
+| `id` | `BIGINT UNSIGNED` | Primary Key | Auto-increment comment id |
+| `issue_id` | `BIGINT UNSIGNED` | Foreign Key | References `issues.id` |
+| `user_id` | `BIGINT UNSIGNED` | Foreign Key | Comment author |
+| `comment_text` | `TEXT` |  | Comment body |
+| `is_internal` | `BOOLEAN` |  | Marks an internal note |
+| `deleted_at` | `TIMESTAMP` |  | Null for active comments; timestamp for soft-deleted comments |
+
+### `issue_activity`
+
+Stores ticket history such as field changes, comments added, comments edited, and comments deleted.
+
+## Frontend Pages
+
+| Page | Purpose |
+| --- | --- |
+| `/` | Login/register screen and ticket dashboard after authentication |
+| `/tickets/:id` | Ticket detail page with metadata, work update fields, comments, and activity history |
+| `/my-tickets` | Personal queue for tickets reported by, assigned to, or owned by the current user |
 
 ## LLM Research
 
