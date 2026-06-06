@@ -250,6 +250,30 @@ pre {
   padding: 22px 16px;
 }
 
+.dashboard-shell.role-admin .sidebar {
+  background: #172b4d;
+}
+
+.dashboard-shell.role-developer .sidebar {
+  background: #17463b;
+}
+
+.dashboard-shell.role-member .sidebar {
+  background: #344054;
+}
+
+.dashboard-shell.role-admin .role-note strong {
+  color: #0c66e4;
+}
+
+.dashboard-shell.role-developer .role-note strong {
+  color: #1f845a;
+}
+
+.dashboard-shell.role-member .role-note strong {
+  color: #475467;
+}
+
 .sidebar-brand {
   align-items: center;
   display: flex;
@@ -726,6 +750,40 @@ pre {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.management-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.25fr);
+}
+
+.management-list {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.management-list h2 {
+  font-size: 20px;
+}
+
+.management-item {
+  background: #f7f9fc;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.management-item span,
+.management-item p,
+.management-item small {
+  color: var(--muted);
+  margin: 0;
+}
+
 .ticket-edit-panel {
   max-width: 980px;
 }
@@ -787,7 +845,8 @@ pre {
   .metric-grid,
   .ticket-board,
   .dashboard-forms,
-  .ticket-detail-grid {
+  .ticket-detail-grid,
+  .management-layout {
     grid-template-columns: 1fr;
   }
 

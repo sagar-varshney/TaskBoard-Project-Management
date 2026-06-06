@@ -179,6 +179,16 @@ async function createIssue(req, res, next) {
       throw new AppError("projectId and title are required", 400);
     }
 
+    if (
+      req.user.role !== "admin" &&
+      (assigneeId || ownerId || sprintId || scrumTeamId)
+    ) {
+      throw new AppError(
+        "Only admins can delegate a new ticket or assign its sprint and scrum team",
+        403
+      );
+    }
+
     validateOption(issueType, allowedIssueTypes, "issueType");
     validateOption(priority, allowedPriorities, "priority");
     validateOption(resolution, allowedResolutions, "resolution");
