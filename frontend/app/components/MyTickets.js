@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
 export default function MyTickets() {
+  // Personal queue page shows tickets connected to the current user.
   const [tickets, setTickets] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [message, setMessage] = useState("");
@@ -42,6 +43,7 @@ export default function MyTickets() {
 
     try {
       const [profileData, ticketData] = await Promise.all([
+        // Load profile and personal tickets together.
         apiRequest("/auth/me"),
         apiRequest("/tickets/my")
       ]);

@@ -40,6 +40,8 @@ async function createTeam(req, res, next) {
     const connection = await pool.getConnection();
 
     try {
+      // Transaction keeps team creation and member assignment together.
+      // If one member insert fails, the whole team creation is rolled back.
       await connection.beginTransaction();
       const [result] = await connection.execute(
         "INSERT INTO scrum_teams (project_id, name, description) VALUES (?, ?, ?)",

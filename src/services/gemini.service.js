@@ -4,6 +4,7 @@ const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 
 function parseJsonResponse(text) {
   try {
+    // Gemini is instructed to return JSON; parsing fails if the provider returns plain text.
     return JSON.parse(text);
   } catch (error) {
     throw new AppError("LLM returned an unexpected response format", 502);
@@ -15,6 +16,7 @@ async function summarizeTicket(ticket) {
     throw new AppError("Gemini API key is not configured", 503);
   }
 
+  // Only send ticket context needed for the insight. The key stays on the backend in .env.
   const prompt = `
 You are assisting a ticket management dashboard.
 Analyze this ticket and return only valid JSON with these fields:

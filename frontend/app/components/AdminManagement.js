@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
 export default function AdminManagement({ mode }) {
+  // One component handles two admin pages: /admin/sprints and /admin/teams.
   const [currentUser, setCurrentUser] = useState(null);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -63,6 +64,7 @@ export default function AdminManagement({ mode }) {
       const profileData = await apiRequest("/auth/me");
       setCurrentUser(profileData.user);
 
+      // Frontend guard for UX; backend routes still enforce admin-only writes.
       if (profileData.user.role !== "admin") {
         setMessage("This workspace management page is available to admins only.");
         return;
@@ -242,6 +244,7 @@ export default function AdminManagement({ mode }) {
                     multiple
                     value={teamForm.memberIds}
                     onChange={(event) =>
+                      // selectedOptions is converted into an array of user IDs for the backend.
                       setTeamForm({
                         ...teamForm,
                         memberIds: Array.from(event.target.selectedOptions, (option) => option.value)

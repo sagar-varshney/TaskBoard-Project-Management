@@ -6,13 +6,16 @@ async function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
+    // Protected routes expect: Authorization: Bearer <jwt>
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       throw new AppError("Authorization token is required", 401);
     }
 
     const token = authHeader.split(" ")[1];
+    // jwt.verify checks the signature and expiry using the same secret used during login/register.
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Soft-deleted users are blocked even if they still have an old valid token.
     const [rows] = await pool.execute(
       `SELECT id, email, first_name, last_name, role, created_at
        FROM users
@@ -24,6 +27,7 @@ async function authenticate(req, res, next) {
       throw new AppError("User no longer exists", 401);
     }
 
+    // Controllers and role middleware read req.user instead of decoding the token again.
     req.user = rows[0];
     next();
   } catch (error) {

@@ -6,7 +6,11 @@ const allowedIssueTypes = ["bug", "task", "story"];
 const allowedPriorities = ["low", "medium", "high", "critical"];
 const allowedStatuses = ["todo", "in_progress", "done"];
 const allowedResolutions = ["unresolved", "fixed", "wont_fix", "duplicate"];
+
+// Non-admin users may only change these work-progress fields.
 const workEditableFields = ["status", "resolution", "fixPlan"];
+
+// Maps database column names to request body field names for activity/audit logging.
 const activityFields = [
   ["title", "title"],
   ["issue_type", "issueType"],
@@ -23,6 +27,8 @@ const activityFields = [
 ];
 
 const ticketSelect = `
+  -- Shared ticket query used by list/get/update responses.
+  -- It joins related tables so the frontend receives readable names/emails, not just IDs.
   SELECT
     i.id, i.project_id, i.reporter_id, i.assignee_id, i.owner_id, i.sprint_id,
     i.scrum_team_id, i.title, i.description,
@@ -45,12 +51,14 @@ const ticketSelect = `
 `;
 
 function validateOption(value, allowedValues, fieldName) {
+  // Keeps incoming API values aligned with the ENUM values in MySQL.
   if (value !== undefined && !allowedValues.includes(value)) {
     throw new AppError(`${fieldName} must be one of: ${allowedValues.join(", ")}`, 400);
   }
 }
 
 async function findTicket(id) {
+  // Single source for fetching a ticket with all joined display fields.
   const [rows] = await pool.execute(
     `${ticketSelect}
      WHERE i.id = ?`,
@@ -61,6 +69,7 @@ async function findTicket(id) {
 }
 
 function normalizeActivityValue(value) {
+  // Audit values are stored as TEXT. Empty/unknown values become NULL for cleaner history.
   if (value === undefined || value === null || value === "") {
     return null;
   }
@@ -69,6 +78,7 @@ function normalizeActivityValue(value) {
 }
 
 async function logIssueActivity(issueId, actorId, action, fieldName = null, oldValue = null, newValue = null) {
+  // Inserts one audit event into issue_activity.
   await pool.execute(
     `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, old_value, new_value)
      VALUES (?, ?, ?, ?, ?, ?)`,
@@ -84,6 +94,7 @@ async function logIssueActivity(issueId, actorId, action, fieldName = null, oldV
 }
 
 async function logChangedFields(issueId, actorId, beforeTicket, afterTicket, requestBody) {
+  // Only log fields that were actually sent in the request and whose values changed.
   for (const [columnName, bodyField] of activityFields) {
     if (requestBody[bodyField] === undefined) {
       continue;
@@ -103,6 +114,7 @@ async function listIssues(req, res, next) {
     const values = [];
     const filters = [];
 
+    // These optional query params power filtering on the dashboard.
     if (req.query.projectId) {
       filters.push("i.project_id = ?");
       values.push(req.query.projectId);
@@ -129,6 +141,7 @@ async function listIssues(req, res, next) {
 
 async function listMyIssues(req, res, next) {
   try {
+    // Personal queue includes tickets the user reported, owns, or is assigned to.
     const [tickets] = await pool.execute(
       `${ticketSelect}
        WHERE i.assignee_id = ? OR i.owner_id = ? OR i.reporter_id = ?
@@ -183,6 +196,7 @@ async function createIssue(req, res, next) {
       req.user.role !== "admin" &&
       (assigneeId || ownerId || sprintId || scrumTeamId)
     ) {
+      // Members/developers can report tickets, but admins control delegation and planning.
       throw new AppError(
         "Only admins can delegate a new ticket or assign its sprint and scrum team",
         403
@@ -217,6 +231,7 @@ async function createIssue(req, res, next) {
     );
 
     const ticket = await findTicket(result.insertId);
+    // First audit entry for the ticket.
     await logIssueActivity(ticket.id, req.user.id, "created_ticket");
     res.status(201).json({ ticket });
   } catch (error) {
@@ -231,6 +246,7 @@ async function createIssue(req, res, next) {
 
 async function updateIssue(req, res, next) {
   try {
+    // Dynamic update: only fields provided in req.body are added to the SQL SET clause.
     const fields = [];
     const values = [];
     const {
@@ -264,6 +280,7 @@ async function updateIssue(req, res, next) {
         existingTicket.owner_id === req.user.id;
 
       if (blockedFields.length > 0) {
+        // Protects planning fields such as sprint, type, priority, assignee, and owner.
         throw new AppError(
           "Only admins can update ticket metadata such as header, type, priority, sprint, scrum team, impact, and description",
           403
@@ -271,6 +288,7 @@ async function updateIssue(req, res, next) {
       }
 
       if (!isDelegatedUser) {
+        // Developers can update work globally; members need to be assignee or owner.
         throw new AppError(
           "Only admins, developers, assignees, or owners can update ticket work fields",
           403
@@ -362,6 +380,7 @@ async function updateIssue(req, res, next) {
     }
 
     values.push(req.params.id);
+    // fields.join(", ") produces SQL like: "status = ?, resolution = ?".
     await pool.execute(
       `UPDATE issues
        SET ${fields.join(", ")}
@@ -370,6 +389,7 @@ async function updateIssue(req, res, next) {
     );
 
     const ticket = await findTicket(req.params.id);
+    // Compare the old/new ticket and write audit records for changed fields.
     await logChangedFields(req.params.id, req.user.id, existingTicket, ticket, req.body);
     res.json({
       message: "Ticket updated",
@@ -394,6 +414,7 @@ async function listIssueActivity(req, res, next) {
     }
 
     const [activity] = await pool.execute(
+      // Activity timeline joins users so the UI can show who made each change.
       `SELECT
          a.id, a.issue_id, a.actor_id, a.action, a.field_name, a.old_value,
          a.new_value, a.created_at,
@@ -414,6 +435,7 @@ async function listIssueActivity(req, res, next) {
 }
 
 async function updateIssueStatus(req, res, next) {
+  // Backward-compatible helper route that limits the request to status only.
   req.body = { status: req.body.status };
   updateIssue(req, res, next);
 }
@@ -427,6 +449,7 @@ async function createIssueSummary(req, res, next) {
     }
 
     const insight = await summarizeTicket(ticket);
+    // Returns structured AI output for the frontend insight panel.
     res.json({
       ticket_id: ticket.id,
       ticket_key: ticket.ticket_key,
@@ -446,6 +469,7 @@ async function listIssueComments(req, res, next) {
     }
 
     const [comments] = await pool.execute(
+      // deleted_at IS NULL implements comment soft delete.
       `SELECT
          c.id, c.issue_id, c.user_id, c.comment_text, c.is_internal, c.created_at, c.updated_at,
          u.email AS author_email,
@@ -483,6 +507,7 @@ async function createIssueComment(req, res, next) {
        VALUES (?, ?, ?, ?)`,
       [req.params.id, req.user.id, commentText.trim(), Boolean(isInternal)]
     );
+    // Comment actions also appear in the audit timeline.
     await logIssueActivity(req.params.id, req.user.id, "added_comment");
 
     const [comments] = await pool.execute(
@@ -526,6 +551,7 @@ async function updateIssueComment(req, res, next) {
     }
 
     if (req.user.role !== "admin" && existingComments[0].user_id !== req.user.id) {
+      // Admins can moderate all comments; normal users can edit only their own.
       throw new AppError("You can only edit your own comments", 403);
     }
 
@@ -576,6 +602,7 @@ async function deleteIssueComment(req, res, next) {
     }
 
     await pool.execute(
+      // Soft delete preserves the comment record but hides it from normal comment lists.
       "UPDATE issue_comments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
       [req.params.commentId]
     );

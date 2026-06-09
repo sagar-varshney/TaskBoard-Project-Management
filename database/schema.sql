@@ -1,6 +1,7 @@
 CREATE DATABASE IF NOT EXISTS jira_clone;
 USE jira_clone;
 
+-- Stores login accounts. deleted_at enables soft delete: the row stays, but the user is treated as inactive.
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   INDEX idx_users_deleted_at (deleted_at)
 );
 
+-- Project workspaces. project_key is used to build readable ticket keys like PAY-15.
 CREATE TABLE IF NOT EXISTS projects (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_key VARCHAR(20) NOT NULL UNIQUE,
@@ -28,6 +30,7 @@ CREATE TABLE IF NOT EXISTS projects (
     ON DELETE RESTRICT
 );
 
+-- Sprint planning table. Each sprint belongs to a project.
 CREATE TABLE IF NOT EXISTS sprints (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
@@ -45,6 +48,7 @@ CREATE TABLE IF NOT EXISTS sprints (
     ON DELETE CASCADE
 );
 
+-- Scrum teams belong to projects and can contain multiple users through scrum_team_members.
 CREATE TABLE IF NOT EXISTS scrum_teams (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
@@ -59,6 +63,7 @@ CREATE TABLE IF NOT EXISTS scrum_teams (
     ON DELETE CASCADE
 );
 
+-- Join table for many-to-many relationship: one team has many users, one user can be in many teams.
 CREATE TABLE IF NOT EXISTS scrum_team_members (
   team_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -72,6 +77,7 @@ CREATE TABLE IF NOT EXISTS scrum_team_members (
     ON DELETE CASCADE
 );
 
+-- Main ticket table. Named issues internally because JIRA commonly calls tickets "issues".
 CREATE TABLE IF NOT EXISTS issues (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
@@ -121,6 +127,7 @@ CREATE TABLE IF NOT EXISTS issues (
     ON DELETE SET NULL
 );
 
+-- Ticket comments. deleted_at is comment-level soft delete.
 CREATE TABLE IF NOT EXISTS issue_comments (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   issue_id BIGINT UNSIGNED NOT NULL,
@@ -141,6 +148,7 @@ CREATE TABLE IF NOT EXISTS issue_comments (
     ON DELETE RESTRICT
 );
 
+-- Ticket audit table. Stores who changed what, from which value, to which value, and when.
 CREATE TABLE IF NOT EXISTS issue_activity (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   issue_id BIGINT UNSIGNED NOT NULL,

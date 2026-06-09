@@ -14,6 +14,7 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
   const isRegister = mode === "register";
 
   function updateField(event) {
+    // Controlled inputs: React state is the source of truth for all form values.
     const { name, value } = event.target;
     setFormValues((currentValues) => ({
       ...currentValues,
@@ -24,6 +25,7 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
   function handleSubmit(event) {
     event.preventDefault();
 
+    // Login sends only email/password. Register adds firstName/lastName.
     const payload = {
       email: formValues.email,
       password: formValues.password

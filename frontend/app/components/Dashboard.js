@@ -10,6 +10,7 @@ const columns = [
 ];
 
 function emptyTicketForm(projectId = "") {
+  // Used when creating a fresh ticket or resetting the form after submit.
   return {
     projectId,
     assigneeId: "",
@@ -26,6 +27,7 @@ function emptyTicketForm(projectId = "") {
 }
 
 export default function Dashboard({ token, user, onLogout }) {
+  // Dashboard state mirrors the major backend resources shown on this page.
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [sprints, setSprints] = useState([]);
@@ -55,6 +57,7 @@ export default function Dashboard({ token, user, onLogout }) {
   }, [token]);
 
   async function apiRequest(path, options = {}) {
+    // Small wrapper so every dashboard API call automatically includes the JWT.
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...options,
       headers: {
@@ -77,6 +80,7 @@ export default function Dashboard({ token, user, onLogout }) {
 
     try {
       const ticketQuery = projectId ? `?projectId=${projectId}` : "";
+      // Load independent resources in parallel to keep the dashboard fast.
       const [projectData, ticketData, userData, sprintData, teamData] = await Promise.all([
         apiRequest("/projects"),
         apiRequest(`/tickets${ticketQuery}`),
@@ -140,6 +144,7 @@ export default function Dashboard({ token, user, onLogout }) {
 
   async function updateTicketStatus(ticketId, status) {
     try {
+      // Uses the same PATCH endpoint as the ticket detail page, but sends only status.
       await apiRequest(`/tickets/${ticketId}`, {
         method: "PATCH",
         body: JSON.stringify({ status })
@@ -178,6 +183,7 @@ export default function Dashboard({ token, user, onLogout }) {
   }
 
   const ticketsByStatus = columns.reduce((result, column) => {
+    // Creates the Kanban columns: todo, in_progress, done.
     result[column.key] = tickets.filter((ticket) => ticket.status === column.key);
     return result;
   }, {});
@@ -202,6 +208,7 @@ export default function Dashboard({ token, user, onLogout }) {
           <a className="nav-link" href="/my-tickets">My tickets</a>
           <a className="nav-link" href="#create-ticket">Create ticket</a>
           {isAdmin ? <a className="nav-link" href="#create-project">Projects</a> : null}
+          {/* Sprint/team management lives in separate admin-only pages to keep the dashboard cleaner. */}
           {isAdmin ? <a className="nav-link" href="/admin/sprints">Sprints</a> : null}
           {isAdmin ? <a className="nav-link" href="/admin/teams">Scrum teams</a> : null}
         </nav>
@@ -285,6 +292,7 @@ export default function Dashboard({ token, user, onLogout }) {
                       user.role === "developer" ||
                       ticket.assignee_id === user.id ||
                       ticket.owner_id === user.id ? (
+                        // Frontend visibility follows the same idea as backend permissions.
                         <div className="ticket-actions">
                           <select
                             aria-label={`Update ${ticket.ticket_key} status`}
@@ -373,6 +381,7 @@ export default function Dashboard({ token, user, onLogout }) {
               </label>
             </div>
             {isAdmin ? (
+              // Only admins can set delegation and planning metadata at ticket creation.
               <>
                 <div className="form-row">
                   <label>

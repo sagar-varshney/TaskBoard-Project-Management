@@ -3,6 +3,7 @@ const AppError = require("../utils/app-error");
 
 async function listProjects(req, res, next) {
   try {
+    // Every authenticated user can see projects so they can create/view tickets.
     const [projects] = await pool.execute(
       `SELECT id, project_key, name, description, owner_id, created_at, updated_at
        FROM projects
@@ -23,6 +24,7 @@ async function createProject(req, res, next) {
       throw new AppError("Project key and name are required", 400);
     }
 
+    // Project keys are used to create readable ticket keys like PAY-12.
     const projectKey = key.toUpperCase().trim();
 
     const [result] = await pool.execute(

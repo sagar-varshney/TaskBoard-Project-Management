@@ -13,6 +13,7 @@ const typeOptions = ["bug", "task", "story"];
 const resolutionOptions = ["unresolved", "fixed", "wont_fix", "duplicate"];
 
 function formatDate(value) {
+  // Converts database timestamps into readable local date/time strings.
   if (!value) {
     return "Not set";
   }
@@ -21,6 +22,7 @@ function formatDate(value) {
 }
 
 function emptyEditForm() {
+  // One form object powers both admin metadata edits and work-progress edits.
   return {
     title: "",
     issueType: "task",
@@ -40,6 +42,7 @@ function emptyEditForm() {
 }
 
 export default function TicketDetail({ ticketId }) {
+  // Ticket detail pulls together ticket fields, comments, activity, and permission state.
   const [ticket, setTicket] = useState(null);
   const [users, setUsers] = useState([]);
   const [sprints, setSprints] = useState([]);
@@ -70,6 +73,7 @@ export default function TicketDetail({ ticketId }) {
   }, [ticketId]);
 
   async function apiRequest(path, options = {}) {
+    // Same API helper pattern as Dashboard: attach token, parse JSON, throw readable errors.
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...options,
       headers: {
@@ -87,6 +91,7 @@ export default function TicketDetail({ ticketId }) {
   }
 
   function syncEditForm(nextTicket) {
+    // Converts database snake_case fields into frontend camelCase form fields.
     setEditForm({
       title: nextTicket.title || "",
       issueType: nextTicket.issue_type || "task",
@@ -111,6 +116,7 @@ export default function TicketDetail({ ticketId }) {
 
     try {
       const [profileData, ticketData, commentData, activityData, userData, sprintData, teamData] = await Promise.all([
+        // These resources are independent, so they can load at the same time.
         apiRequest("/auth/me"),
         apiRequest(`/tickets/${ticketId}`),
         apiRequest(`/tickets/${ticketId}/comments`),
@@ -151,6 +157,7 @@ export default function TicketDetail({ ticketId }) {
 
     try {
       await updateTicket({
+        // Admin-only metadata: planning, delegation, impact, and description.
         title: editForm.title,
         issueType: editForm.issueType,
         priority: editForm.priority,
@@ -175,6 +182,7 @@ export default function TicketDetail({ ticketId }) {
 
     try {
       await updateTicket({
+        // Work fields: available to admins, developers, and delegated members.
         status: editForm.status,
         resolution: editForm.resolution,
         fixPlan: editForm.fixPlan
@@ -257,6 +265,7 @@ export default function TicketDetail({ ticketId }) {
 
   const isAdmin = currentUser?.role === "admin";
   const isDelegatedUser =
+    // Developers can update work; members can update work only when assigned/owner.
     currentUser?.role === "developer" ||
     ticket?.assignee_id === currentUser?.id ||
     ticket?.owner_id === currentUser?.id;
@@ -390,6 +399,7 @@ export default function TicketDetail({ ticketId }) {
       </section>
 
       {isAdmin ? (
+        // Admin panel is intentionally separate from work updates.
         <section className="ticket-edit-panel">
           <div>
             <p className="dashboard-eyebrow">Admin controls</p>
@@ -500,6 +510,7 @@ export default function TicketDetail({ ticketId }) {
       ) : null}
 
       {canUpdateWork ? (
+        // Work update panel stays available to users responsible for fixing the ticket.
         <section className="ticket-edit-panel">
           <div>
             <p className="dashboard-eyebrow">Work update</p>

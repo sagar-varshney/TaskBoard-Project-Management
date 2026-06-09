@@ -6,6 +6,7 @@ const { signToken } = require("../utils/jwt");
 function validateRegisterInput(body) {
   const { email, password, firstName, lastName } = body;
 
+  // Register requires the exact fields specified in the original task.
   if (!email || !password || !firstName || !lastName) {
     throw new AppError("Email, password, firstName and lastName are required", 400);
   }
@@ -32,6 +33,7 @@ async function register(req, res, next) {
     validateRegisterInput(req.body);
 
     const { email, password, firstName, lastName } = req.body;
+    // Normalize email so Test@Email.com and test@email.com are treated as the same account.
     const normalizedEmail = email.toLowerCase().trim();
 
     const [existingUsers] = await pool.execute(
@@ -43,6 +45,7 @@ async function register(req, res, next) {
       throw new AppError("Email is already registered", 409);
     }
 
+    // bcrypt stores a one-way password hash; the real password is never saved.
     const passwordHash = await bcrypt.hash(password, 12);
     const [result] = await pool.execute(
       "INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, 'member')",
@@ -59,6 +62,7 @@ async function register(req, res, next) {
 
     res.status(201).json({
       message: "Registered successfully",
+      // The token lets the new user immediately access protected routes.
       token: signToken(user),
       user
     });
@@ -92,6 +96,7 @@ async function login(req, res, next) {
       throw new AppError("Invalid email or password", 401);
     }
 
+    // Never send password_hash back to the frontend.
     delete user.password_hash;
 
     res.json({

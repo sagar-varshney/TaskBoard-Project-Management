@@ -2,6 +2,7 @@ const AppError = require("../utils/app-error");
 
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
+    // This is backend authorization. Even if the frontend hides buttons, this blocks manual API calls.
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       next(new AppError("You do not have permission to perform this action", 403));
       return;

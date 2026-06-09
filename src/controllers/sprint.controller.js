@@ -8,6 +8,7 @@ async function listSprints(req, res, next) {
     const values = [];
     const filters = [];
 
+    // Optional filter used by the frontend when showing sprints for one project.
     if (req.query.projectId) {
       filters.push("project_id = ?");
       values.push(req.query.projectId);
@@ -39,6 +40,7 @@ async function createSprint(req, res, next) {
       throw new AppError(`status must be one of: ${allowedSprintStatuses.join(", ")}`, 400);
     }
 
+    // Admin-only route in sprint.routes.js; this function only handles validation and insertion.
     const [result] = await pool.execute(
       `INSERT INTO sprints (project_id, name, goal, start_date, end_date, status)
        VALUES (?, ?, ?, ?, ?, ?)`,

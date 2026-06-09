@@ -7,6 +7,7 @@ import Dashboard from "./components/Dashboard";
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
 export default function HomePage() {
+  // This page owns the authentication state. Once logged in, it renders the dashboard.
   const [mode, setMode] = useState("login");
   const [message, setMessage] = useState("");
   const [token, setToken] = useState("");
@@ -14,6 +15,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Keeps the user logged in after refresh by reusing the saved JWT.
     const savedToken = localStorage.getItem("jiraCloneToken");
 
     if (savedToken) {
@@ -28,6 +30,7 @@ export default function HomePage() {
     setCurrentUser(null);
 
     const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
+    // Login/register share one form; the current mode chooses the backend endpoint.
     const response = await fetch(`${apiBaseUrl}${endpoint}`, {
       method: "POST",
       headers: {
@@ -75,6 +78,7 @@ export default function HomePage() {
     try {
       const response = await fetch(`${apiBaseUrl}/auth/me`, {
         headers: {
+          // This is how the frontend sends the JWT to protected backend routes.
           Authorization: `Bearer ${savedToken}`
         }
       });

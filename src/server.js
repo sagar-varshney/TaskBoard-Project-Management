@@ -4,6 +4,7 @@ const { testDatabaseConnection } = require("./config/db");
 const port = process.env.PORT || 5000;
 
 async function startServer() {
+  // The API should not start unless MySQL is reachable, because most routes depend on the database.
   await testDatabaseConnection();
 
   app.listen(port, () => {
