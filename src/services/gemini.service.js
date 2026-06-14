@@ -5,31 +5,16 @@ const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 function parseJsonResponse(text) {
   try {
     // Gemini is instructed to return JSON; parsing fails if the provider returns plain text.
-    return JSON.parse(text);
+    return JSON.parse(text.replace(/^```json\s*|\s*```$/g, "").trim());
   } catch (error) {
     throw new AppError("LLM returned an unexpected response format", 502);
   }
 }
 
-async function summarizeTicket(ticket) {
+async function generateJson(prompt) {
   if (!process.env.GEMINI_API_KEY) {
     throw new AppError("Gemini API key is not configured", 503);
   }
-
-  // Only send ticket context needed for the insight. The key stays on the backend in .env.
-  const prompt = `
-You are assisting a ticket management dashboard.
-Analyze this ticket and return only valid JSON with these fields:
-- summary: a concise one-sentence summary
-- suggestedPriority: one of low, medium, high, critical
-- nextAction: one practical next step
-
-Ticket title: ${ticket.title}
-Ticket description: ${ticket.description || "No description provided"}
-Current type: ${ticket.issue_type}
-Current priority: ${ticket.priority}
-Current status: ${ticket.status}
-`;
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
@@ -56,6 +41,13 @@ Current status: ${ticket.status}
 
   if (!response.ok) {
     const providerMessage = data.error?.message || "Gemini request failed";
+    if (response.status === 429 || providerMessage.toLowerCase().includes("quota")) {
+      throw new AppError(
+        "The AI planner is temporarily rate-limited. Basic commands such as 'Show all tickets', " +
+        "'Show my tickets', 'Show DEMO-5', status updates, and comments still work. Please retry complex requests shortly.",
+        429
+      );
+    }
     throw new AppError(providerMessage, 502);
   }
 
@@ -68,6 +60,26 @@ Current status: ${ticket.status}
   return parseJsonResponse(text);
 }
 
+async function summarizeTicket(ticket) {
+  // Only send ticket context needed for the insight. The key stays on the backend in .env.
+  const prompt = `
+You are assisting a ticket management dashboard.
+Analyze this ticket and return only valid JSON with these fields:
+- summary: a concise one-sentence summary
+- suggestedPriority: one of low, medium, high, critical
+- nextAction: one practical next step
+
+Ticket title: ${ticket.title}
+Ticket description: ${ticket.description || "No description provided"}
+Current type: ${ticket.issue_type}
+Current priority: ${ticket.priority}
+Current status: ${ticket.status}
+`;
+
+  return generateJson(prompt);
+}
+
 module.exports = {
+  generateJson,
   summarizeTicket
 };

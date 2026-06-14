@@ -793,6 +793,112 @@ pre {
   justify-items: flex-start;
 }
 
+.agent-chat {
+  bottom: 18px;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  position: fixed;
+  right: 18px;
+  z-index: 20;
+}
+
+.agent-toggle {
+  background: var(--blue);
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 42px;
+  padding: 0 16px;
+}
+
+.agent-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+  max-height: min(620px, calc(100vh - 86px));
+  padding: 14px;
+  width: min(390px, calc(100vw - 36px));
+}
+
+.agent-panel header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.agent-panel header div {
+  display: grid;
+  gap: 3px;
+}
+
+.agent-panel header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-messages {
+  display: grid;
+  gap: 8px;
+  min-height: 180px;
+  overflow-y: auto;
+}
+
+.agent-message {
+  line-height: 1.45;
+  margin: 0;
+  max-width: 88%;
+  overflow-wrap: anywhere;
+  padding: 9px 11px;
+}
+
+.agent-message.assistant {
+  background: #eef2f8;
+  justify-self: start;
+}
+
+.agent-message.user {
+  background: #e9f2ff;
+  justify-self: end;
+}
+
+.agent-suggestions {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-suggestions button {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px;
+  text-align: left;
+}
+
+.agent-input {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.agent-input button {
+  background: var(--blue);
+  border: 0;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.agent-input button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 @media (max-width: 900px) {
   .auth-page {
     grid-template-columns: 1fr;
@@ -857,5 +963,10 @@ pre {
   .ticket-detail-header {
     align-items: stretch;
     display: grid;
+  }
+
+  .agent-chat {
+    bottom: 10px;
+    right: 10px;
   }
 }

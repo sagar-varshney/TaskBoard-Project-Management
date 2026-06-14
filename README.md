@@ -16,6 +16,8 @@ TaskBoard is a JIRA-inspired project management application with JWT authenticat
 - Ticket activity history
 - Personal My Tickets queue
 - Admin-only Gemini ticket insights
+- LangGraph agent chatbot for approved ticket read/write operations
+- Quota-resistant local command handling for common chatbot actions
 
 ## Roles
 
@@ -34,6 +36,7 @@ Backend authorization enforces these rules even if a user manually calls an API.
 - **Database:** MySQL with `mysql2`
 - **Authentication:** JWT and bcrypt
 - **AI:** Google Gemini REST API
+- **Agent orchestration:** LangGraph.js
 
 ## Main Pages
 
@@ -146,6 +149,34 @@ Authorization: Bearer jwt_token
 | `GET` | `/api/tickets/:id/activity` | Get activity history |
 | `POST` | `/api/tickets/:id/ai-summary` | Generate admin-only Gemini insight |
 
+### Agent Chat
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/agent/chat` | Ask the LangGraph agent to read or perform permitted ticket actions |
+
+The agent uses three LangGraph nodes:
+
+1. Planner chooses one approved tool. Common commands use deterministic local parsing; complex requests use Gemini.
+2. Tool executor calls the existing authenticated TaskBoard APIs.
+3. Deterministic responder formats the verified API result.
+
+Supported tools include listing projects/tickets, reading a ticket, creating a basic ticket, updating permitted ticket fields, and adding comments. Existing backend role checks and ticket audit logging still apply.
+
+Common commands that work without consuming Gemini quota:
+
+```text
+Show all tickets
+Show my tickets
+List active tickets
+Show DEMO-5
+Create a high priority bug in DEMO titled Review checkout logs
+Set DEMO-5 status to in progress
+Add a comment to DEMO-5 saying The issue is being investigated
+```
+
+Complex natural-language requests use Gemini when quota is available. If Gemini is rate-limited, the API returns a short retry message while common commands continue to work.
+
 ### Workspace Management
 
 | Method | Route | Access |
@@ -213,3 +244,10 @@ docs/
 - Soft-deleted users cannot login or use old tokens.
 - Sensitive keys remain in backend `.env`.
 - Backend role checks prevent frontend permission bypass.
+- Agent tools call the existing authenticated APIs instead of writing directly to MySQL.
+
+## Development Notes
+
+- Run the backend and frontend in separate terminals.
+- Avoid running `npm run build` while `npm run dev` is active in `frontend`, because both commands write to Next.js `.next`.
+- Standalone pages such as `/my-tickets` and `/tickets/:id` read the latest saved JWT before each API request.

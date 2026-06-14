@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
@@ -10,23 +10,23 @@ export default function MyTickets() {
   const [currentUser, setCurrentUser] = useState(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const token = typeof window !== "undefined" ? localStorage.getItem("jiraCloneToken") : "";
-
-  const authHeaders = useMemo(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }),
-    [token]
-  );
 
   useEffect(() => {
     loadMyTickets();
   }, []);
 
   async function apiRequest(path) {
+    const token = localStorage.getItem("jiraCloneToken");
+
+    if (!token) {
+      throw new Error("Your login session is missing. Return to the dashboard and log in again.");
+    }
+
     const response = await fetch(`${apiBaseUrl}${path}`, {
-      headers: authHeaders
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
     });
     const data = await response.json();
 

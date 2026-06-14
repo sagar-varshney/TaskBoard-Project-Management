@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const cors = require("cors");
 const express = require("express");
+const agentRoutes = require("./routes/agent.routes");
 const authRoutes = require("./routes/auth.routes");
 const issueRoutes = require("./routes/issue.routes");
 const projectRoutes = require("./routes/project.routes");
@@ -22,6 +23,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Route groups keep each feature area separate: auth, projects, tickets, teams, etc.
+app.use("/api/agent", agentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/sprints", sprintRoutes);

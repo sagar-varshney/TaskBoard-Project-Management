@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AgentChat from "./AgentChat";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const columns = [
@@ -496,6 +497,7 @@ export default function Dashboard({ token, user, onLogout }) {
           ) : null}
         </section>
       </section>
+      <AgentChat token={token} role={user.role} onChanged={() => loadDashboard(selectedProjectId)} />
     </main>
   );
 }

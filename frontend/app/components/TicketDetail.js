@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const statusOptions = [
@@ -59,25 +59,23 @@ export default function TicketDetail({ ticketId }) {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("jiraCloneToken") : "";
-  const authHeaders = useMemo(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }),
-    [token]
-  );
-
   useEffect(() => {
     loadTicket();
   }, [ticketId]);
 
   async function apiRequest(path, options = {}) {
     // Same API helper pattern as Dashboard: attach token, parse JSON, throw readable errors.
+    const token = localStorage.getItem("jiraCloneToken");
+
+    if (!token) {
+      throw new Error("Your login session is missing. Return to the dashboard and log in again.");
+    }
+
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...options,
       headers: {
-        ...authHeaders,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
         ...options.headers
       }
     });
