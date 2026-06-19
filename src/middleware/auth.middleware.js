@@ -17,7 +17,7 @@ async function authenticate(req, res, next) {
 
     // Soft-deleted users are blocked even if they still have an old valid token.
     const [rows] = await pool.execute(
-      `SELECT id, email, first_name, last_name, role, created_at
+      `SELECT id, email, first_name, last_name, role, token_version, created_at
        FROM users
        WHERE id = ? AND deleted_at IS NULL`,
       [payload.userId]
@@ -27,8 +27,13 @@ async function authenticate(req, res, next) {
       throw new AppError("User no longer exists", 401);
     }
 
+    if ((payload.tokenVersion || 0) !== rows[0].token_version) {
+      throw new AppError("Token has been revoked", 401);
+    }
+
     // Controllers and role middleware read req.user instead of decoding the token again.
-    req.user = rows[0];
+    const { token_version: ignoredTokenVersion, ...user } = rows[0];
+    req.user = user;
     next();
   } catch (error) {
     if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {

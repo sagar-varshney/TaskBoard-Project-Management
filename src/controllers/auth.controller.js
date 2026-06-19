@@ -57,14 +57,17 @@ async function register(req, res, next) {
       email: normalizedEmail,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
-      role: "member"
+      role: "member",
+      token_version: 0
     };
+    const token = signToken(user);
+    const { token_version: ignoredTokenVersion, ...safeUser } = user;
 
     res.status(201).json({
       message: "Registered successfully",
       // The token lets the new user immediately access protected routes.
-      token: signToken(user),
-      user
+      token,
+      user: safeUser
     });
   } catch (error) {
     next(error);
@@ -79,7 +82,7 @@ async function login(req, res, next) {
     const normalizedEmail = email.toLowerCase().trim();
 
     const [rows] = await pool.execute(
-      `SELECT id, email, password_hash, first_name, last_name, role
+      `SELECT id, email, password_hash, first_name, last_name, role, token_version
        FROM users
        WHERE email = ? AND deleted_at IS NULL`,
       [normalizedEmail]
@@ -98,11 +101,28 @@ async function login(req, res, next) {
 
     // Never send password_hash back to the frontend.
     delete user.password_hash;
+    const token = signToken(user);
+    delete user.token_version;
 
     res.json({
       message: "Logged in successfully",
-      token: signToken(user),
+      token,
       user
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function logout(req, res, next) {
+  try {
+    await pool.execute(
+      "UPDATE users SET token_version = token_version + 1 WHERE id = ?",
+      [req.user.id]
+    );
+
+    res.json({
+      message: "Logged out successfully"
     });
   } catch (error) {
     next(error);
@@ -118,5 +138,6 @@ function me(req, res) {
 module.exports = {
   register,
   login,
+  logout,
   me
 };

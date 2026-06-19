@@ -1,17 +1,22 @@
 const AppError = require("../utils/app-error");
 
 const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 function parseJsonResponse(text) {
   try {
-    // Gemini is instructed to return JSON; parsing fails if the provider returns plain text.
+    // LLM providers are instructed to return JSON; parsing fails if a provider returns plain text.
     return JSON.parse(text.replace(/^```json\s*|\s*```$/g, "").trim());
   } catch (error) {
     throw new AppError("LLM returned an unexpected response format", 502);
   }
 }
 
-async function generateJson(prompt) {
+function isFallbackCandidate(error) {
+  return [429, 502, 503, 504].includes(error.statusCode);
+}
+
+async function generateWithGemini(prompt) {
   if (!process.env.GEMINI_API_KEY) {
     throw new AppError("Gemini API key is not configured", 503);
   }
@@ -58,6 +63,62 @@ async function generateJson(prompt) {
   }
 
   return parseJsonResponse(text);
+}
+
+async function generateWithGroq(prompt) {
+  if (!process.env.GROQ_API_KEY) {
+    throw new AppError("Groq API key is not configured", 503);
+  }
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: groqModel,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      }
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new AppError(data.error?.message || "Groq request failed", response.status);
+  }
+
+  const text = data.choices?.[0]?.message?.content;
+
+  if (!text) {
+    throw new AppError("Groq did not return a JSON response", 502);
+  }
+
+  return parseJsonResponse(text);
+}
+
+async function generateJson(prompt) {
+  try {
+    return await generateWithGemini(prompt);
+  } catch (error) {
+    if (process.env.GROQ_API_KEY && isFallbackCandidate(error)) {
+      return generateWithGroq(prompt);
+    }
+
+    if (!process.env.GEMINI_API_KEY && process.env.GROQ_API_KEY) {
+      return generateWithGroq(prompt);
+    }
+
+    throw error;
+  }
 }
 
 async function summarizeTicket(ticket) {

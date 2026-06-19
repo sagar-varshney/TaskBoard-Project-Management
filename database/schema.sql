@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  token_version INT UNSIGNED NOT NULL DEFAULT 0,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   role ENUM('member', 'developer', 'admin') NOT NULL DEFAULT 'member',

@@ -5,7 +5,8 @@ function signToken(user) {
   return jwt.sign(
     {
       userId: user.id,
-      email: user.email
+      email: user.email,
+      tokenVersion: user.token_version || 0
     },
     process.env.JWT_SECRET,
     {

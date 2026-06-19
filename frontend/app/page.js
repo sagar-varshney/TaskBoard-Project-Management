@@ -97,7 +97,22 @@ export default function HomePage() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const savedToken = token || localStorage.getItem("jiraCloneToken");
+
+    if (savedToken) {
+      try {
+        await fetch(`${apiBaseUrl}/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${savedToken}`
+          }
+        });
+      } catch (error) {
+        console.error("Logout request failed", error);
+      }
+    }
+
     localStorage.removeItem("jiraCloneToken");
     setToken("");
     setCurrentUser(null);
