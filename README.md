@@ -1,58 +1,67 @@
 # TaskBoard
 
-TaskBoard is a JIRA-inspired project management application with JWT authentication, role-based workflows, ticket collaboration, sprint/team management, activity history, and Gemini-powered ticket insights.
+TaskBoard is a JIRA-inspired project management application with authentication, role-based ticket workflows, sprint/team management, attachment collaboration, and AI-assisted ticket triage.
 
-## Features
+## Highlights
 
-- Register/login with JWT authentication and bcrypt password hashing
-- MySQL schema with user soft deletion
-- Role-specific experiences for `admin`, `developer`, and `member`
-- Project and ticket creation
-- Kanban-style ticket dashboard
-- Linked ticket detail pages
-- Assignee and owner delegation
+- JWT authentication with bcrypt password hashing
+- Role-based access for `admin`, `developer`, and `member`
+- Ticket dashboard with status-based workflow columns
+- Ticket detail pages with comments, activity history, assignment, impact, and fix plan
 - Sprint and scrum team management
-- Ticket comments with edit, delete, and internal-note support
-- Ticket activity history
-- Personal My Tickets queue
-- Admin-only Gemini ticket insights
-- LangGraph agent chatbot for approved ticket read/write operations
-- Quota-resistant local command handling for common chatbot actions
-- Ticket attachments with PDF, DOC/DOCX, JPEG, and PNG support
-- Inline image/PDF previews, attachment comments, categories, tags, and versions
-- AI attachment reading with saved analysis history
-- Cloudflare R2 object storage with direct-upload API support
-
-## Roles
-
-| Role | Access |
-| --- | --- |
-| `admin` | Manages projects, ticket metadata, delegation, sprints, teams, comments, and Gemini insights |
-| `developer` | Creates tickets and updates work fields such as status, resolution, and fix plan |
-| `member` | Creates/comments on tickets and updates work fields only when delegated as assignee or owner |
-
-Backend authorization enforces these rules even if a user manually calls an API.
+- Attachment upload, preview, comments, categories, tags, versioning, and AI analysis history
+- Cloudflare R2 object storage support for deployment-friendly file handling
+- LangGraph-powered assistant for approved ticket read/write actions
+- Gemini and Groq integration for AI-assisted workflows
 
 ## Tech Stack
 
-- **Frontend:** Next.js 15, React, CSS, Fetch API
-- **Backend:** Node.js, Express.js
-- **Database:** MySQL with `mysql2`
-- **Authentication:** JWT and bcrypt
-- **AI:** Google Gemini REST API
-- **Agent orchestration:** LangGraph.js
-
-## Main Pages
-
-| Route | Purpose |
+| Area | Technology |
 | --- | --- |
-| `/` | Login/register and role-specific dashboard |
-| `/tickets/:id` | Ticket details, comments, activity, and permitted controls |
-| `/my-tickets` | Tickets reported by, assigned to, or owned by the current user |
-| `/admin/sprints` | Admin-only sprint management |
-| `/admin/teams` | Admin-only scrum team management |
+| Frontend | Next.js 15, React, CSS |
+| Backend | Node.js, Express.js |
+| Database | MySQL, `mysql2` |
+| Authentication | JWT, bcrypt |
+| AI | Gemini, Groq |
+| Agent | LangGraph.js |
+| File Storage | Local storage or Cloudflare R2 |
 
-## Quick Setup
+## Roles
+
+| Role | Summary |
+| --- | --- |
+| `admin` | Full workspace control, including project planning, delegation, sprints, teams, and AI summaries |
+| `developer` | Can create tickets, update work progress, comment, and help manage attachments |
+| `member` | Can create and comment on tickets, with limited work updates when delegated |
+
+Backend authorization enforces role rules even if a request is made outside the frontend.
+
+## Project Structure
+
+```text
+database/
+  schema.sql
+  migrations/
+
+src/
+  config/
+  controllers/
+  middleware/
+  routes/
+  services/
+  utils/
+  app.js
+  server.js
+
+frontend/
+  app/
+    admin/
+    components/
+    my-tickets/
+    tickets/
+```
+
+## Setup
 
 ### Backend
 
@@ -61,9 +70,9 @@ npm install
 cp .env.example .env
 ```
 
-Update `.env` with your MySQL credentials, JWT secret, and optional Gemini key.
+Update `.env` with your local MySQL credentials, JWT secret, and optional AI/storage keys.
 
-Create a new database:
+Create a fresh database:
 
 ```bash
 mysql -u root -p < database/schema.sql
@@ -87,7 +96,11 @@ Start the backend:
 npm run dev
 ```
 
-Backend: `http://localhost:5001`
+Backend runs on:
+
+```text
+http://localhost:5001
+```
 
 ### Frontend
 
@@ -98,11 +111,15 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Frontend: `http://localhost:3000`
+Frontend runs on:
 
-## Environment Variables
+```text
+http://localhost:3000
+```
 
-Backend `.env`:
+## Environment
+
+Backend `.env` uses these values:
 
 ```env
 PORT=5001
@@ -115,10 +132,10 @@ DB_NAME=jira_clone
 JWT_SECRET=replace_with_a_long_random_secret
 JWT_EXPIRES_IN=1d
 
-GEMINI_API_KEY=your_personal_gemini_api_key
+GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash-lite
 
-GROQ_API_KEY=your_personal_groq_api_key
+GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=openai/gpt-oss-20b
 
 STORAGE_PROVIDER=local
@@ -128,21 +145,6 @@ R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
 R2_BUCKET=taskboard-attachments
 ```
 
-Use `STORAGE_PROVIDER=local` during local development. For deployment, create a
-private Cloudflare R2 bucket, configure the four `R2_*` variables, and change
-`STORAGE_PROVIDER` to `r2`. Existing local attachment records continue to use
-their saved local paths; new uploads use the selected provider.
-
-After R2 is configured, copy existing active local attachments into the bucket:
-
-```bash
-npm run migrate:attachments:r2
-```
-
-The migration uploads each local file, changes its database record to `r2`,
-stores the generated object key, and leaves the original local file untouched
-as a temporary backup.
-
 Frontend `.env.local`:
 
 ```env
@@ -151,135 +153,54 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:5001/api
 
 Never commit real `.env` files.
 
-## Core APIs
+## Attachment Storage
 
-All protected routes require:
+TaskBoard separates file metadata from file content:
 
-```text
-Authorization: Bearer jwt_token
+- MySQL stores attachment metadata, ownership, ticket relationship, category, tags, version, comments, AI history, and the storage object key.
+- Cloudflare R2 stores the actual uploaded file bytes.
+- The backend controls access to files through authenticated routes.
+
+For local development, use:
+
+```env
+STORAGE_PROVIDER=local
 ```
 
-### Authentication
+For R2-backed uploads, configure the `R2_*` values and use:
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/auth/register` | Register a member |
-| `POST` | `/api/auth/login` | Login and receive JWT |
-| `GET` | `/api/auth/me` | Get current authenticated user |
-
-### Tickets
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/tickets` | List tickets |
-| `GET` | `/api/tickets/my` | List current user's related tickets |
-| `GET` | `/api/tickets/:id` | Get ticket details |
-| `POST` | `/api/tickets` | Create ticket |
-| `PATCH` | `/api/tickets/:id` | Role-aware ticket update |
-| `GET/POST` | `/api/tickets/:id/comments` | List/add comments |
-| `PATCH/DELETE` | `/api/tickets/:id/comments/:commentId` | Edit/delete comment |
-| `GET` | `/api/tickets/:id/activity` | Get activity history |
-| `POST` | `/api/tickets/:id/ai-summary` | Generate admin-only Gemini insight |
-
-### Agent Chat
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/agent/chat` | Ask the LangGraph agent to read or perform permitted ticket actions |
-
-The agent uses three LangGraph nodes:
-
-1. Planner chooses one approved tool. Common commands use deterministic local parsing; complex requests use Gemini.
-2. Tool executor calls the existing authenticated TaskBoard APIs.
-3. Deterministic responder formats the verified API result.
-
-Supported tools include listing projects/tickets, reading a ticket, creating a basic ticket, updating permitted ticket fields, and adding comments. Existing backend role checks and ticket audit logging still apply.
-
-Common commands that work without consuming Gemini quota:
-
-```text
-Show all tickets
-Show my tickets
-List active tickets
-Show DEMO-5
-Create a high priority bug in DEMO titled Review checkout logs
-Set DEMO-5 status to in progress
-Add a comment to DEMO-5 saying The issue is being investigated
+```env
+STORAGE_PROVIDER=r2
 ```
 
-Complex natural-language requests use Gemini when quota is available. If Gemini is rate-limited, the API returns a short retry message while common commands continue to work.
+To migrate existing local attachments to R2:
 
-### Workspace Management
-
-| Method | Route | Access |
-| --- | --- | --- |
-| `GET/POST` | `/api/projects` | List projects / admin creates project |
-| `GET/POST` | `/api/sprints` | List sprints / admin creates sprint |
-| `GET/POST` | `/api/teams` | List teams / admin creates team |
-| `GET` | `/api/users` | List active users for delegation |
+```bash
+npm run migrate:attachments:r2
+```
 
 ## Database Overview
 
+Core tables include:
+
 | Table | Purpose |
 | --- | --- |
-| `users` | Accounts, roles, and user soft deletion |
+| `users` | Accounts, roles, token versioning, and soft deletion |
 | `projects` | Project workspaces |
-| `issues` | Tickets, delegation, sprint/team links, impact, and fix plan |
-| `sprints` | Sprint records and lifecycle |
-| `scrum_teams` | Scrum teams |
-| `scrum_team_members` | Users belonging to scrum teams |
-| `issue_comments` | Comments, internal notes, and comment soft deletion |
-| `issue_activity` | Audit trail of ticket changes and comment actions |
-
-Important ENUM values:
-
-- User role: `member`, `developer`, `admin`
-- Ticket type: `bug`, `task`, `story`
-- Ticket status: `todo`, `in_progress`, `done`
-- Priority: `low`, `medium`, `high`, `critical`
-- Resolution: `unresolved`, `fixed`, `wont_fix`, `duplicate`
-- Sprint status: `planned`, `active`, `completed`
-
-## Project Structure
-
-```text
-database/
-  schema.sql
-  migrations/
-
-src/
-  config/
-  controllers/
-  middleware/
-  routes/
-  services/
-  utils/
-  app.js
-  server.js
-
-frontend/app/
-  admin/
-  components/
-  my-tickets/
-  tickets/[id]/
-  page.js
-  globals.css
-
-docs/
-  llm-api-options.md
-```
-
-## Security Notes
-
-- Passwords are stored only as bcrypt hashes.
-- JWTs are verified on protected routes.
-- Soft-deleted users cannot login or use old tokens.
-- Sensitive keys remain in backend `.env`.
-- Backend role checks prevent frontend permission bypass.
-- Agent tools call the existing authenticated APIs instead of writing directly to MySQL.
+| `issues` | Tickets and planning fields |
+| `sprints` | Sprint planning |
+| `scrum_teams` | Team records |
+| `scrum_team_members` | Team membership |
+| `issue_comments` | Ticket comments |
+| `issue_attachments` | Attachment metadata and storage references |
+| `issue_attachment_comments` | Comments tied to a specific attachment |
+| `issue_attachment_analyses` | Saved AI analysis history |
+| `issue_activity` | Ticket audit timeline |
 
 ## Development Notes
 
-- Run the backend and frontend in separate terminals.
-- Avoid running `npm run build` while `npm run dev` is active in `frontend`, because both commands write to Next.js `.next`.
-- Standalone pages such as `/my-tickets` and `/tickets/:id` read the latest saved JWT before each API request.
+- Run backend and frontend in separate terminals.
+- Keep secrets in `.env` and `frontend/.env.local`.
+- Use migrations for database changes after the initial schema is created.
+- Backend role checks are the source of truth; frontend permissions are only for user experience.
+- Attachment files should be stored in object storage for deployment rather than inside MySQL.

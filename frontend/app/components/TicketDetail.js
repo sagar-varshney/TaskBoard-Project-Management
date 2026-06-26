@@ -246,16 +246,7 @@ export default function TicketDetail({ ticketId }) {
     }
 
     try {
-      const formData = new FormData();
-      formData.append("attachment", attachmentFile);
-      formData.append("category", attachmentCategory);
-      formData.append("tags", attachmentTags);
-
-      if (replacesAttachmentId) {
-        formData.append("replacesAttachmentId", replacesAttachmentId);
-      }
-
-      const data = await uploadAttachmentWithProgress(formData);
+      const data = await uploadAttachmentDirectToR2();
 
       setAttachments((current) => [data.attachment, ...current]);
       setAttachmentFile(null);
@@ -267,6 +258,83 @@ export default function TicketDetail({ ticketId }) {
     } catch (error) {
       setMessage(error.message);
     }
+  }
+
+  async function uploadAttachmentDirectToR2() {
+    try {
+      setUploadProgress(2);
+      const presignData = await apiRequest(`/tickets/${ticketId}/attachments/presign`, {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: attachmentFile.name,
+          mimeType: attachmentFile.type,
+          fileSize: attachmentFile.size,
+          category: attachmentCategory,
+          tags: attachmentTags,
+          replacesAttachmentId: replacesAttachmentId || undefined
+        })
+      });
+
+      await uploadFileToPresignedUrl(presignData.uploadUrl, attachmentFile);
+      setUploadProgress(95);
+
+      return apiRequest(`/tickets/${ticketId}/attachments/complete`, {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: presignData.fileName,
+          mimeType: presignData.mimeType,
+          fileSize: presignData.fileSize,
+          objectKey: presignData.objectKey,
+          category: attachmentCategory,
+          tags: attachmentTags,
+          replacesAttachmentId: replacesAttachmentId || undefined
+        })
+      });
+    } catch (error) {
+      if (error.message.includes("Direct uploads require R2") || error.message.includes("Failed to fetch")) {
+        return uploadAttachmentViaBackend();
+      }
+
+      throw error;
+    }
+  }
+
+  function uploadFileToPresignedUrl(uploadUrl, file) {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+
+      request.open("PUT", uploadUrl);
+      request.setRequestHeader("Content-Type", file.type);
+      request.setRequestHeader("x-amz-meta-issueid", String(ticketId));
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.max(2, Math.min(94, Math.round((event.loaded / event.total) * 92))));
+        }
+      };
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) {
+          resolve();
+          return;
+        }
+
+        reject(new Error("Direct R2 upload failed"));
+      };
+      request.onerror = () => reject(new Error("Failed to fetch"));
+      request.send(file);
+    });
+  }
+
+  function uploadAttachmentViaBackend() {
+    const formData = new FormData();
+    formData.append("attachment", attachmentFile);
+    formData.append("category", attachmentCategory);
+    formData.append("tags", attachmentTags);
+
+    if (replacesAttachmentId) {
+      formData.append("replacesAttachmentId", replacesAttachmentId);
+    }
+
+    return uploadAttachmentWithProgress(formData);
   }
 
   function uploadAttachmentWithProgress(formData) {
