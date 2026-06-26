@@ -668,12 +668,16 @@ pre {
 .comments-panel,
 .comment-form,
 .comment-list,
+.attachments-panel,
+.attachment-form,
+.attachment-list,
 .ticket-edit-form {
   display: grid;
   gap: 12px;
 }
 
-.comment-item {
+.comment-item,
+.attachment-item {
   background: #f7f9fc;
   border: 1px solid var(--line);
   display: grid;
@@ -681,9 +685,118 @@ pre {
   padding: 14px;
 }
 
-.comment-item small {
+.comment-item small,
+.attachment-item small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.attachment-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.attachment-item strong,
+.attachment-item small {
+  display: block;
+}
+
+.attachment-item p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.attachment-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.upload-progress {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.upload-progress progress {
+  height: 12px;
+  width: 100%;
+}
+
+.attachment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.attachment-badges span {
+  background: #eaf1ff;
+  color: #1f4a8a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 7px;
+}
+
+.attachment-tags {
+  font-size: 13px;
+}
+
+.attachment-preview {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  cursor: zoom-in;
+  display: block;
+  margin-top: 10px;
+  max-width: 420px;
+  padding: 0;
+  text-align: left;
+}
+
+.attachment-preview img,
+.attachment-preview iframe {
+  border: 0;
+  display: block;
+  height: auto;
+  max-height: 260px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.attachment-preview iframe {
+  height: 260px;
+}
+
+.attachment-insight {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.attachment-insight pre {
+  background: #f4f6f9;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  max-height: 180px;
+}
+
+.attachment-comments {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.attachment-comments form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .comment-meta,
@@ -963,6 +1076,10 @@ pre {
   .ticket-detail-header {
     align-items: stretch;
     display: grid;
+  }
+
+  .attachment-item {
+    grid-template-columns: 1fr;
   }
 
   .agent-chat {

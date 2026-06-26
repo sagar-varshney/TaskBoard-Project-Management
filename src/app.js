@@ -16,7 +16,8 @@ const app = express();
 // Allows the Next.js frontend to call this API from a different port during development.
 app.use(cors());
 // Parses JSON request bodies so controllers can read req.body.
-app.use(express.json());
+// File uploads use multipart/form-data, so JSON bodies can stay relatively small.
+app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -39,6 +40,14 @@ app.use((req, res) => {
 // Central error handler: controllers call next(error), and this sends the final JSON response.
 app.use((error, req, res, next) => {
   console.error(error);
+
+  if (error.code === "LIMIT_FILE_SIZE") {
+    res.status(400).json({
+      message: "Attachment must be between 1 byte and 8MB"
+    });
+    return;
+  }
+
   res.status(error.statusCode || 500).json({
     message: error.message || "Internal server error"
   });

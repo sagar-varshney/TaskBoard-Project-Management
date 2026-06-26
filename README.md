@@ -18,6 +18,10 @@ TaskBoard is a JIRA-inspired project management application with JWT authenticat
 - Admin-only Gemini ticket insights
 - LangGraph agent chatbot for approved ticket read/write operations
 - Quota-resistant local command handling for common chatbot actions
+- Ticket attachments with PDF, DOC/DOCX, JPEG, and PNG support
+- Inline image/PDF previews, attachment comments, categories, tags, and versions
+- AI attachment reading with saved analysis history
+- Cloudflare R2 object storage with direct-upload API support
 
 ## Roles
 
@@ -71,6 +75,10 @@ For an existing database, run migrations in order:
 mysql -u root -p < database/migrations/001_add_roles_and_soft_delete.sql
 mysql -u root -p < database/migrations/002_add_ticket_details_and_comments.sql
 mysql -u root -p < database/migrations/003_add_ticket_operations.sql
+mysql -u root -p < database/migrations/004_add_token_version_to_users.sql
+mysql -u root -p < database/migrations/005_add_issue_attachments.sql
+mysql -u root -p < database/migrations/006_add_r2_attachment_storage.sql
+mysql -u root -p < database/migrations/007_improve_attachment_collaboration.sql
 ```
 
 Start the backend:
@@ -109,7 +117,31 @@ JWT_EXPIRES_IN=1d
 
 GEMINI_API_KEY=your_personal_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash-lite
+
+GROQ_API_KEY=your_personal_groq_api_key
+GROQ_MODEL=openai/gpt-oss-20b
+
+STORAGE_PROVIDER=local
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET=taskboard-attachments
 ```
+
+Use `STORAGE_PROVIDER=local` during local development. For deployment, create a
+private Cloudflare R2 bucket, configure the four `R2_*` variables, and change
+`STORAGE_PROVIDER` to `r2`. Existing local attachment records continue to use
+their saved local paths; new uploads use the selected provider.
+
+After R2 is configured, copy existing active local attachments into the bucket:
+
+```bash
+npm run migrate:attachments:r2
+```
+
+The migration uploads each local file, changes its database record to `r2`,
+stores the generated object key, and leaves the original local file untouched
+as a temporary backup.
 
 Frontend `.env.local`:
 

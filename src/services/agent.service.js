@@ -92,6 +92,8 @@ Approved tools and arguments:
 - create_ticket: { projectId?, projectKey?, projectName?, title, description?, issueType?, priority?, impact?, fixPlan? }
 - update_ticket: { ticketId, status?, resolution?, fixPlan?, title?, description?, issueType?, priority?, assigneeId?, ownerId?, sprintId?, scrumTeamId?, impact? }
 - add_comment: { ticketId, commentText, isInternal? }
+- list_attachments: { ticketId }
+- analyze_attachment: { ticketId, attachmentId?, prompt? } analyzes the specified attachment, or the latest attachment when attachmentId is omitted
 - answer: { message }
 
 Valid values:
@@ -164,6 +166,27 @@ function localPlan(message) {
       arguments: {
         ticketId: commentMatch[1],
         commentText: commentMatch[2]
+      }
+    };
+  }
+
+  const listAttachmentsMatch = normalized.match(
+    /(?:show|list|get)\s+(?:the\s+)?attachments\s+(?:for|on)\s+(?:ticket\s+)?([A-Za-z]+-\d+|\d+)$/i
+  );
+  if (listAttachmentsMatch) {
+    return { tool: "list_attachments", arguments: { ticketId: listAttachmentsMatch[1] } };
+  }
+
+  const analyzeAttachmentMatch = normalized.match(
+    /(?:analyze|read|summarize)\s+(?:(?:attachment|file)\s+(\d+)\s+(?:for|on)\s+)?(?:the\s+)?(?:latest\s+)?(?:attachment|file)?\s*(?:for|on)\s+(?:ticket\s+)?([A-Za-z]+-\d+|\d+)(?:\s+(.+))?$/i
+  );
+  if (analyzeAttachmentMatch) {
+    return {
+      tool: "analyze_attachment",
+      arguments: {
+        attachmentId: analyzeAttachmentMatch[1],
+        ticketId: analyzeAttachmentMatch[2],
+        prompt: analyzeAttachmentMatch[3]
       }
     };
   }
@@ -272,6 +295,31 @@ async function executeToolNode(state) {
       });
       break;
     }
+    case "list_attachments": {
+      const ticketId = ticketIdFrom(args.ticketId);
+      result = await callTaskBoardApi(`/tickets/${ticketId}/attachments`, authorization);
+      break;
+    }
+    case "analyze_attachment": {
+      const ticketId = ticketIdFrom(args.ticketId);
+      let attachmentId = args.attachmentId;
+
+      if (!attachmentId) {
+        const attachmentData = await callTaskBoardApi(`/tickets/${ticketId}/attachments`, authorization);
+        if (attachmentData.attachments.length === 0) {
+          result = { message: "This ticket does not have any attachments to analyze." };
+          changed = false;
+          break;
+        }
+        attachmentId = attachmentData.attachments[0].id;
+      }
+
+      result = await callTaskBoardApi(`/tickets/${ticketId}/attachments/${attachmentId}/analyze`, authorization, {
+        method: "POST",
+        body: JSON.stringify({ prompt: args.prompt })
+      });
+      break;
+    }
     case "answer":
       result = { message: args.message || "Please provide more details." };
       break;
@@ -339,6 +387,30 @@ async function respondNode(state) {
       return {
         reply: `Added the comment to ticket ${state.result.comment.issue_id}.`
       };
+    case "list_attachments": {
+      const attachments = state.result.attachments || [];
+      const summary = attachments
+        .slice(0, 5)
+        .map((attachment) => `${attachment.id}: ${attachment.file_name}`)
+        .join(", ");
+      return {
+        reply: attachments.length
+          ? `This ticket has ${attachments.length} attachment(s): ${summary}.`
+          : "This ticket does not have any attachments yet."
+      };
+    }
+    case "analyze_attachment": {
+      if (state.result.message) {
+        return { reply: state.result.message };
+      }
+      const insight = state.result.insight;
+      return {
+        reply:
+          `Attachment analysis: ${insight.summary || "No summary returned."} ` +
+          `Suggested action: ${insight.suggestedAction || "No action suggested."} ` +
+          `Risk level: ${insight.riskLevel || "not specified"}.`
+      };
+    }
     case "answer":
       return { reply: state.result.message };
     default:

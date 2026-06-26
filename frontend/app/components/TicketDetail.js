@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const statusOptions = [
@@ -11,6 +11,16 @@ const statusOptions = [
 const priorityOptions = ["low", "medium", "high", "critical"];
 const typeOptions = ["bug", "task", "story"];
 const resolutionOptions = ["unresolved", "fixed", "wont_fix", "duplicate"];
+const attachmentAccept = ".pdf,.doc,.docx,.jpg,.jpeg,.png";
+const previewFileTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const attachmentCategoryOptions = [
+  { value: "bug_evidence", label: "Bug evidence" },
+  { value: "design_reference", label: "Design reference" },
+  { value: "log_file", label: "Log file" },
+  { value: "requirement_document", label: "Requirement document" },
+  { value: "customer_screenshot", label: "Customer screenshot" },
+  { value: "other", label: "Other" }
+];
 
 function formatDate(value) {
   // Converts database timestamps into readable local date/time strings.
@@ -48,9 +58,21 @@ export default function TicketDetail({ ticketId }) {
   const [sprints, setSprints] = useState([]);
   const [teams, setTeams] = useState([]);
   const [comments, setComments] = useState([]);
+  const [attachments, setAttachments] = useState([]);
   const [activity, setActivity] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [editForm, setEditForm] = useState(emptyEditForm());
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [attachmentCategory, setAttachmentCategory] = useState("bug_evidence");
+  const [attachmentTags, setAttachmentTags] = useState("");
+  const [replacesAttachmentId, setReplacesAttachmentId] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [attachmentPrompt, setAttachmentPrompt] = useState("");
+  const [attachmentInsights, setAttachmentInsights] = useState({});
+  const [attachmentPreviewUrls, setAttachmentPreviewUrls] = useState({});
+  const [attachmentComments, setAttachmentComments] = useState({});
+  const [attachmentCommentDrafts, setAttachmentCommentDrafts] = useState({});
+  const [attachmentAnalyses, setAttachmentAnalyses] = useState({});
   const [commentText, setCommentText] = useState("");
   const [isInternalComment, setIsInternalComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
@@ -58,14 +80,22 @@ export default function TicketDetail({ ticketId }) {
   const [editingCommentInternal, setEditingCommentInternal] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const attachmentPreviewUrlsRef = useRef({});
 
   useEffect(() => {
     loadTicket();
   }, [ticketId]);
 
+  useEffect(() => {
+    return () => {
+      Object.values(attachmentPreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
+
   async function apiRequest(path, options = {}) {
     // Same API helper pattern as Dashboard: attach token, parse JSON, throw readable errors.
     const token = localStorage.getItem("jiraCloneToken");
+    const isFormData = options.body instanceof FormData;
 
     if (!token) {
       throw new Error("Your login session is missing. Return to the dashboard and log in again.");
@@ -75,7 +105,7 @@ export default function TicketDetail({ ticketId }) {
       ...options,
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...options.headers
       }
     });
@@ -108,16 +138,79 @@ export default function TicketDetail({ ticketId }) {
     });
   }
 
+  function canPreviewAttachment(attachment) {
+    return previewFileTypes.has(attachment.mime_type);
+  }
+
+  async function loadAttachmentPreviews(nextAttachments) {
+    const token = localStorage.getItem("jiraCloneToken");
+    const imageAttachments = nextAttachments.filter(canPreviewAttachment);
+
+    if (!token || imageAttachments.length === 0) {
+      setAttachmentPreviewUrls((current) => {
+        Object.values(current).forEach((url) => URL.revokeObjectURL(url));
+        attachmentPreviewUrlsRef.current = {};
+        return {};
+      });
+      return;
+    }
+
+    const previewEntries = await Promise.all(
+      imageAttachments.map(async (attachment) => {
+        const response = await fetch(`${apiBaseUrl}/tickets/${ticketId}/attachments/${attachment.id}/download`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const blob = await response.blob();
+        return [attachment.id, URL.createObjectURL(blob)];
+      })
+    );
+    const nextPreviewUrls = Object.fromEntries(previewEntries.filter(Boolean));
+
+    setAttachmentPreviewUrls((current) => {
+      Object.values(current).forEach((url) => URL.revokeObjectURL(url));
+      attachmentPreviewUrlsRef.current = nextPreviewUrls;
+      return nextPreviewUrls;
+    });
+  }
+
+  async function loadAttachmentCollaboration(nextAttachments) {
+    const entries = await Promise.all(
+      nextAttachments.map(async (attachment) => {
+        const [commentData, analysisData] = await Promise.all([
+          apiRequest(`/tickets/${ticketId}/attachments/${attachment.id}/comments`),
+          apiRequest(`/tickets/${ticketId}/attachments/${attachment.id}/analyses`)
+        ]);
+
+        return [attachment.id, commentData.comments, analysisData.analyses];
+      })
+    );
+
+    setAttachmentComments(
+      Object.fromEntries(entries.map(([attachmentId, comments]) => [attachmentId, comments]))
+    );
+    setAttachmentAnalyses(
+      Object.fromEntries(entries.map(([attachmentId, comments, analyses]) => [attachmentId, analyses]))
+    );
+  }
+
   async function loadTicket() {
     setIsLoading(true);
     setMessage("");
 
     try {
-      const [profileData, ticketData, commentData, activityData, userData, sprintData, teamData] = await Promise.all([
+      const [profileData, ticketData, commentData, attachmentData, activityData, userData, sprintData, teamData] = await Promise.all([
         // These resources are independent, so they can load at the same time.
         apiRequest("/auth/me"),
         apiRequest(`/tickets/${ticketId}`),
         apiRequest(`/tickets/${ticketId}/comments`),
+        apiRequest(`/tickets/${ticketId}/attachments`),
         apiRequest(`/tickets/${ticketId}/activity`),
         apiRequest("/users"),
         apiRequest("/sprints"),
@@ -127,6 +220,9 @@ export default function TicketDetail({ ticketId }) {
       setCurrentUser(profileData.user);
       setTicket(ticketData.ticket);
       setComments(commentData.comments);
+      setAttachments(attachmentData.attachments);
+      await loadAttachmentPreviews(attachmentData.attachments);
+      await loadAttachmentCollaboration(attachmentData.attachments);
       setActivity(activityData.activity);
       setUsers(userData.users);
       setSprints(sprintData.sprints);
@@ -136,6 +232,155 @@ export default function TicketDetail({ ticketId }) {
       setMessage(error.message);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function uploadAttachment(event) {
+    event.preventDefault();
+    setMessage("");
+    setUploadProgress(0);
+
+    if (!attachmentFile) {
+      setMessage("Choose a file before uploading.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("attachment", attachmentFile);
+      formData.append("category", attachmentCategory);
+      formData.append("tags", attachmentTags);
+
+      if (replacesAttachmentId) {
+        formData.append("replacesAttachmentId", replacesAttachmentId);
+      }
+
+      const data = await uploadAttachmentWithProgress(formData);
+
+      setAttachments((current) => [data.attachment, ...current]);
+      setAttachmentFile(null);
+      setAttachmentTags("");
+      setReplacesAttachmentId("");
+      setUploadProgress(0);
+      await loadTicket();
+      setMessage("Attachment uploaded.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  function uploadAttachmentWithProgress(formData) {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem("jiraCloneToken");
+      const request = new XMLHttpRequest();
+
+      request.open("POST", `${apiBaseUrl}/tickets/${ticketId}/attachments`);
+      request.setRequestHeader("Authorization", `Bearer ${token}`);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      request.onload = () => {
+        const data = JSON.parse(request.responseText || "{}");
+
+        if (request.status >= 200 && request.status < 300) {
+          resolve(data);
+          return;
+        }
+
+        reject(new Error(data.message || "Upload failed"));
+      };
+      request.onerror = () => reject(new Error("Upload failed"));
+      request.send(formData);
+    });
+  }
+
+  async function analyzeAttachment(attachmentId) {
+    setMessage("");
+
+    try {
+      const data = await apiRequest(`/tickets/${ticketId}/attachments/${attachmentId}/analyze`, {
+        method: "POST",
+        body: JSON.stringify({ prompt: attachmentPrompt })
+      });
+
+      setAttachmentInsights((current) => ({
+        ...current,
+        [attachmentId]: data.insight
+      }));
+      await loadTicket();
+      setMessage("Attachment analyzed.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function addAttachmentComment(event, attachmentId) {
+    event.preventDefault();
+    setMessage("");
+
+    try {
+      const draft = attachmentCommentDrafts[attachmentId] || "";
+      const data = await apiRequest(`/tickets/${ticketId}/attachments/${attachmentId}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ commentText: draft })
+      });
+
+      setAttachmentComments((current) => ({
+        ...current,
+        [attachmentId]: [...(current[attachmentId] || []), data.comment]
+      }));
+      setAttachmentCommentDrafts((current) => ({
+        ...current,
+        [attachmentId]: ""
+      }));
+      setMessage("Attachment comment added.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function downloadAttachment(attachment) {
+    setMessage("");
+
+    try {
+      const token = localStorage.getItem("jiraCloneToken");
+      const response = await fetch(`${apiBaseUrl}/tickets/${ticketId}/attachments/${attachment.id}/download`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Download failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.file_name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function deleteAttachment(attachmentId) {
+    setMessage("");
+
+    try {
+      await apiRequest(`/tickets/${ticketId}/attachments/${attachmentId}`, {
+        method: "DELETE"
+      });
+      setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
+      await loadTicket();
+      setMessage("Attachment deleted.");
+    } catch (error) {
+      setMessage(error.message);
     }
   }
 
@@ -305,6 +550,169 @@ export default function TicketDetail({ ticketId }) {
 
           <h2>Fix plan</h2>
           <p>{ticket.fix_plan || "No fix plan recorded yet."}</p>
+
+          <section className="attachments-panel">
+            <h2>Attachments</h2>
+            <form className="attachment-form" onSubmit={uploadAttachment}>
+              <label>
+                Upload PDF, DOC, DOCX, JPEG, or PNG
+                <input
+                  accept={attachmentAccept}
+                  type="file"
+                  onChange={(event) => setAttachmentFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <div className="attachment-form-grid">
+                <label>
+                  Category
+                  <select value={attachmentCategory} onChange={(event) => setAttachmentCategory(event.target.value)}>
+                    {attachmentCategoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Tags
+                  <input
+                    placeholder="frontend, login, customer"
+                    value={attachmentTags}
+                    onChange={(event) => setAttachmentTags(event.target.value)}
+                  />
+                </label>
+              </div>
+              <label>
+                Upload as new version of
+                <select value={replacesAttachmentId} onChange={(event) => setReplacesAttachmentId(event.target.value)}>
+                  <option value="">New attachment</option>
+                  {attachments.map((attachment) => (
+                    <option key={attachment.id} value={attachment.id}>
+                      {attachment.file_name} v{attachment.version_number || 1}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {uploadProgress > 0 ? (
+                <div className="upload-progress">
+                  <progress max="100" value={uploadProgress} />
+                  <span>{uploadProgress}%</span>
+                </div>
+              ) : null}
+              <button className="primary-action" type="submit">Upload attachment</button>
+            </form>
+
+            <label>
+              AI analysis prompt
+              <textarea
+                placeholder="Optional: ask what the file shows, extract errors, or recommend next steps"
+                value={attachmentPrompt}
+                onChange={(event) => setAttachmentPrompt(event.target.value)}
+              />
+            </label>
+
+            <div className="attachment-list">
+              {attachments.map((attachment) => {
+                const insight = attachmentInsights[attachment.id];
+                const commentsForAttachment = attachmentComments[attachment.id] || [];
+                const analysesForAttachment = attachmentAnalyses[attachment.id] || [];
+                const canDeleteAttachment =
+                  ["admin", "developer"].includes(currentUser?.role) ||
+                  attachment.uploaded_by === currentUser?.id;
+                const categoryLabel =
+                  attachmentCategoryOptions.find((option) => option.value === attachment.category)?.label || "Other";
+
+                return (
+                  <article className="attachment-item" key={attachment.id}>
+                    <div>
+                      <strong>{attachment.file_name}</strong>
+                      <small>
+                        {attachment.mime_type} - {Math.ceil(attachment.file_size / 1024)} KB - v{attachment.version_number || 1} - {formatDate(attachment.created_at)}
+                      </small>
+                      <div className="attachment-badges">
+                        <span>{categoryLabel}</span>
+                        <span>Visible to authenticated workspace users</span>
+                        <span>Delete: admin, developer, or uploader</span>
+                      </div>
+                      {attachment.tags ? <p className="attachment-tags">Tags: {attachment.tags}</p> : null}
+                      {attachmentPreviewUrls[attachment.id] ? (
+                        <div
+                          className="attachment-preview"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => window.open(attachmentPreviewUrls[attachment.id], "_blank", "noopener,noreferrer")}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              window.open(attachmentPreviewUrls[attachment.id], "_blank", "noopener,noreferrer");
+                            }
+                          }}
+                        >
+                          {attachment.mime_type === "application/pdf" ? (
+                            <iframe src={attachmentPreviewUrls[attachment.id]} title={`${attachment.file_name} preview`} />
+                          ) : (
+                            <img src={attachmentPreviewUrls[attachment.id]} alt={`${attachment.file_name} preview`} />
+                          )}
+                        </div>
+                      ) : null}
+                      {attachment.ai_summary ? <p>{attachment.ai_summary}</p> : null}
+                      {insight ? (
+                        <div className="attachment-insight">
+                          <strong>AI analysis</strong>
+                          <p>{insight.summary}</p>
+                          <p><b>Suggested action:</b> {insight.suggestedAction}</p>
+                          <p><b>Risk:</b> {insight.riskLevel}</p>
+                          {insight.extractedText ? <pre>{insight.extractedText}</pre> : null}
+                        </div>
+                      ) : null}
+                      {analysesForAttachment.length > 0 ? (
+                        <div className="attachment-insight">
+                          <strong>AI analysis history</strong>
+                          {analysesForAttachment.slice(0, 3).map((analysis) => (
+                            <p key={analysis.id}>
+                              {formatDate(analysis.created_at)} - {analysis.summary || "Analysis saved"}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="attachment-comments">
+                        <strong>Attachment comments</strong>
+                        {commentsForAttachment.map((comment) => (
+                          <p key={comment.id}>
+                            <b>{comment.author_first_name} {comment.author_last_name}:</b> {comment.comment_text}
+                          </p>
+                        ))}
+                        <form onSubmit={(event) => addAttachmentComment(event, attachment.id)}>
+                          <input
+                            placeholder="Comment on this file"
+                            value={attachmentCommentDrafts[attachment.id] || ""}
+                            onChange={(event) =>
+                              setAttachmentCommentDrafts((current) => ({
+                                ...current,
+                                [attachment.id]: event.target.value
+                              }))
+                            }
+                          />
+                          <button className="secondary-action" type="submit">Add</button>
+                        </form>
+                      </div>
+                    </div>
+                    <div className="button-row">
+                      <button className="secondary-action" type="button" onClick={() => downloadAttachment(attachment)}>
+                        Download
+                      </button>
+                      <button className="secondary-action" type="button" onClick={() => analyzeAttachment(attachment.id)}>
+                        Analyze
+                      </button>
+                      {canDeleteAttachment ? (
+                        <button className="secondary-action danger-action" type="button" onClick={() => deleteAttachment(attachment.id)}>
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+              {attachments.length === 0 ? <p className="empty-column">No attachments yet</p> : null}
+            </div>
+          </section>
 
           <section className="comments-panel">
             <h2>Comments</h2>

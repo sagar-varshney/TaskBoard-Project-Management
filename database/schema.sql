@@ -149,6 +149,94 @@ CREATE TABLE IF NOT EXISTS issue_comments (
     ON DELETE RESTRICT
 );
 
+-- Files attached to tickets. storage_path points to the local uploads folder; deleted_at enables soft delete.
+CREATE TABLE IF NOT EXISTS issue_attachments (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  uploaded_by BIGINT UNSIGNED NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(120) NOT NULL,
+  file_size BIGINT UNSIGNED NOT NULL,
+  category ENUM('bug_evidence', 'design_reference', 'log_file', 'requirement_document', 'customer_screenshot', 'other') NOT NULL DEFAULT 'other',
+  tags VARCHAR(500) NULL,
+  version_group_id BIGINT UNSIGNED NULL,
+  version_number INT UNSIGNED NOT NULL DEFAULT 1,
+  storage_provider ENUM('local', 'r2') NOT NULL DEFAULT 'local',
+  object_key VARCHAR(500) NULL,
+  storage_path VARCHAR(500) NULL,
+  ai_summary TEXT NULL,
+  extracted_text MEDIUMTEXT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_issue_attachments_issue_id (issue_id),
+  INDEX idx_issue_attachments_uploaded_by (uploaded_by),
+  INDEX idx_issue_attachments_deleted_at (deleted_at),
+  INDEX idx_issue_attachments_category (category),
+  INDEX idx_issue_attachments_version_group_id (version_group_id),
+  UNIQUE KEY uq_issue_attachments_object_key (object_key),
+  CONSTRAINT fk_issue_attachments_issue
+    FOREIGN KEY (issue_id) REFERENCES issues(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_issue_attachments_uploaded_by
+    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+    ON DELETE RESTRICT,
+  CONSTRAINT fk_issue_attachments_version_group
+    FOREIGN KEY (version_group_id) REFERENCES issue_attachments(id)
+    ON DELETE RESTRICT
+);
+
+-- Comments tied to a specific attachment, separate from general ticket comments.
+CREATE TABLE IF NOT EXISTS issue_attachment_comments (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  attachment_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  comment_text TEXT NOT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_issue_attachment_comments_issue_id (issue_id),
+  INDEX idx_issue_attachment_comments_attachment_id (attachment_id),
+  INDEX idx_issue_attachment_comments_user_id (user_id),
+  INDEX idx_issue_attachment_comments_deleted_at (deleted_at),
+  CONSTRAINT fk_issue_attachment_comments_issue
+    FOREIGN KEY (issue_id) REFERENCES issues(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_issue_attachment_comments_attachment
+    FOREIGN KEY (attachment_id) REFERENCES issue_attachments(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_issue_attachment_comments_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE RESTRICT
+);
+
+-- Stores every AI analysis run instead of only keeping the latest summary on the attachment row.
+CREATE TABLE IF NOT EXISTS issue_attachment_analyses (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  issue_id BIGINT UNSIGNED NOT NULL,
+  attachment_id BIGINT UNSIGNED NOT NULL,
+  analyzed_by BIGINT UNSIGNED NOT NULL,
+  prompt TEXT NULL,
+  summary TEXT NULL,
+  extracted_text MEDIUMTEXT NULL,
+  suggested_action TEXT NULL,
+  risk_level VARCHAR(40) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_issue_attachment_analyses_issue_id (issue_id),
+  INDEX idx_issue_attachment_analyses_attachment_id (attachment_id),
+  INDEX idx_issue_attachment_analyses_analyzed_by (analyzed_by),
+  CONSTRAINT fk_issue_attachment_analyses_issue
+    FOREIGN KEY (issue_id) REFERENCES issues(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_issue_attachment_analyses_attachment
+    FOREIGN KEY (attachment_id) REFERENCES issue_attachments(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_issue_attachment_analyses_user
+    FOREIGN KEY (analyzed_by) REFERENCES users(id)
+    ON DELETE RESTRICT
+);
+
 -- Ticket audit table. Stores who changed what, from which value, to which value, and when.
 CREATE TABLE IF NOT EXISTS issue_activity (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

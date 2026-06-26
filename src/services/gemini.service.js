@@ -65,6 +65,71 @@ async function generateWithGemini(prompt) {
   return parseJsonResponse(text);
 }
 
+async function generateAttachmentInsight({ ticket, attachment, base64Data, prompt }) {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new AppError("Gemini API key is required to analyze attachments", 503);
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `
+You are analyzing a TaskBoard ticket attachment.
+Read the attachment content and return only valid JSON with:
+- summary: short description of what the attachment shows or contains
+- extractedText: important readable text found in the file, or an empty string
+- suggestedAction: one practical next action for the ticket owner
+- riskLevel: one of low, medium, high, critical
+
+Ticket: ${ticket.ticket_key} "${ticket.title}"
+Ticket description: ${ticket.description || "No description recorded"}
+Ticket impact: ${ticket.impact || "No impact recorded"}
+Ticket fix plan: ${ticket.fix_plan || "No fix plan recorded"}
+Attachment: ${attachment.file_name} (${attachment.mime_type})
+User request: ${prompt || "Analyze this attachment for ticket triage."}
+`
+              },
+              {
+                inline_data: {
+                  mime_type: attachment.mime_type,
+                  data: base64Data
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      })
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new AppError(data.error?.message || "Attachment analysis failed", response.status);
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new AppError("Gemini did not return attachment analysis", 502);
+  }
+
+  return parseJsonResponse(text);
+}
+
 async function generateWithGroq(prompt) {
   if (!process.env.GROQ_API_KEY) {
     throw new AppError("Groq API key is not configured", 503);
@@ -142,5 +207,6 @@ Current status: ${ticket.status}
 
 module.exports = {
   generateJson,
+  generateAttachmentInsight,
   summarizeTicket
 };

@@ -1,4 +1,5 @@
 const express = require("express");
+const multer = require("multer");
 const {
   createIssueComment,
   createIssue,
@@ -14,8 +15,24 @@ const {
 } = require("../controllers/issue.controller");
 const { authenticate } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
+const {
+  analyzeIssueAttachment,
+  completePresignedAttachmentUpload,
+  createAttachmentComment,
+  createIssueAttachment,
+  createPresignedAttachmentUpload,
+  deleteIssueAttachment,
+  downloadIssueAttachment,
+  listAttachmentAnalyses,
+  listAttachmentComments,
+  listIssueAttachments
+} = require("../controllers/attachment.controller");
 
 const router = express.Router();
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 }
+});
 
 // Everything in this router is protected by JWT authentication.
 router.use(authenticate);
@@ -24,11 +41,21 @@ router.get("/my", listMyIssues);
 router.get("/:id", getIssue);
 router.get("/:id/activity", listIssueActivity);
 router.get("/:id/comments", listIssueComments);
+router.get("/:id/attachments", listIssueAttachments);
 router.post("/", createIssue);
 router.patch("/:id", updateIssue);
 router.post("/:id/comments", createIssueComment);
 router.patch("/:id/comments/:commentId", updateIssueComment);
 router.delete("/:id/comments/:commentId", deleteIssueComment);
+router.post("/:id/attachments", attachmentUpload.single("attachment"), createIssueAttachment);
+router.post("/:id/attachments/presign", createPresignedAttachmentUpload);
+router.post("/:id/attachments/complete", completePresignedAttachmentUpload);
+router.get("/:id/attachments/:attachmentId/download", downloadIssueAttachment);
+router.post("/:id/attachments/:attachmentId/analyze", analyzeIssueAttachment);
+router.get("/:id/attachments/:attachmentId/analyses", listAttachmentAnalyses);
+router.get("/:id/attachments/:attachmentId/comments", listAttachmentComments);
+router.post("/:id/attachments/:attachmentId/comments", createAttachmentComment);
+router.delete("/:id/attachments/:attachmentId", deleteIssueAttachment);
 // AI summary is admin-only because it can affect planning/triage decisions.
 router.post("/:id/ai-summary", requireRole("admin"), createIssueSummary);
 
