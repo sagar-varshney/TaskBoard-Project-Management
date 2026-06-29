@@ -305,7 +305,6 @@ export default function TicketDetail({ ticketId }) {
 
       request.open("PUT", uploadUrl);
       request.setRequestHeader("Content-Type", file.type);
-      request.setRequestHeader("x-amz-meta-issueid", String(ticketId));
       request.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           setUploadProgress(Math.max(2, Math.min(94, Math.round((event.loaded / event.total) * 92))));

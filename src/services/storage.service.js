@@ -97,10 +97,7 @@ async function createPresignedPutUrl({ issueId, fileName, mimeType }) {
   const command = new PutObjectCommand({
     Bucket: config.bucket,
     Key: objectKey,
-    ContentType: mimeType,
-    Metadata: {
-      issueId: String(issueId)
-    }
+    ContentType: mimeType
   });
   const uploadUrl = await getSignedUrl(r2Client(), command, { expiresIn: 300 });
 
