@@ -2,6 +2,7 @@ const path = require("path");
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
 const { generateAttachmentInsight } = require("../services/gemini.service");
+const logger = require("../utils/logger");
 const {
   createPresignedPutUrl,
   readAttachmentObject,
@@ -278,6 +279,15 @@ async function createIssueAttachment(req, res, next) {
        VALUES (?, ?, 'added_attachment', 'attachment', ?)`,
       [req.params.id, req.user.id, safeFileName]
     );
+    logger.audit("attachment_uploaded", req, {
+      issueId: Number(req.params.id),
+      attachmentId,
+      fileName: safeFileName,
+      mimeType,
+      fileSize: fileBuffer.length,
+      storageProvider: storedObject.storageProvider,
+      uploadMode: "backend"
+    });
 
     const attachment = await findAttachment(req.params.id, attachmentId);
 
@@ -319,6 +329,13 @@ async function createPresignedAttachmentUpload(req, res, next) {
       issueId: req.params.id,
       fileName: safeFileName,
       mimeType
+    });
+    logger.audit("attachment_upload_presigned", req, {
+      issueId: Number(req.params.id),
+      fileName: safeFileName,
+      mimeType,
+      fileSize: Number(fileSize),
+      objectKey: presignedUpload.objectKey
     });
 
     res.json({
@@ -413,6 +430,15 @@ async function completePresignedAttachmentUpload(req, res, next) {
        VALUES (?, ?, 'added_attachment', 'attachment', ?)`,
       [req.params.id, req.user.id, safeFileName]
     );
+    logger.audit("attachment_uploaded", req, {
+      issueId: Number(req.params.id),
+      attachmentId,
+      fileName: safeFileName,
+      mimeType,
+      fileSize: Number(fileSize),
+      storageProvider: "r2",
+      uploadMode: "direct"
+    });
 
     const attachment = await findAttachment(req.params.id, attachmentId);
 
@@ -497,6 +523,12 @@ async function analyzeIssueAttachment(req, res, next) {
        VALUES (?, ?, 'analyzed_attachment', 'attachment', ?)`,
       [req.params.id, req.user.id, attachment.file_name]
     );
+    logger.audit("attachment_analyzed", req, {
+      issueId: Number(req.params.id),
+      attachmentId: Number(req.params.attachmentId),
+      fileName: attachment.file_name,
+      riskLevel: insight.riskLevel || null
+    });
 
     res.json({
       attachmentId: attachment.id,
@@ -529,6 +561,11 @@ async function deleteIssueAttachment(req, res, next) {
        VALUES (?, ?, 'deleted_attachment', 'attachment', ?)`,
       [req.params.id, req.user.id, attachment.file_name]
     );
+    logger.audit("attachment_deleted", req, {
+      issueId: Number(req.params.id),
+      attachmentId: Number(req.params.attachmentId),
+      fileName: attachment.file_name
+    });
 
     res.json({ message: "Attachment deleted" });
   } catch (error) {
@@ -586,6 +623,11 @@ async function createAttachmentComment(req, res, next) {
        VALUES (?, ?, 'added_attachment_comment', 'attachment', ?)`,
       [req.params.id, req.user.id, attachment.file_name]
     );
+    logger.audit("attachment_comment_added", req, {
+      issueId: Number(req.params.id),
+      attachmentId: Number(req.params.attachmentId),
+      commentId: result.insertId
+    });
 
     const [comments] = await pool.execute(
       `SELECT

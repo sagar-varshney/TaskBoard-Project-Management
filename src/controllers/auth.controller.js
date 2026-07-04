@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
 const { signToken } = require("../utils/jwt");
+const logger = require("../utils/logger");
 
 function validateRegisterInput(body) {
   const { email, password, firstName, lastName } = body;
@@ -69,6 +70,10 @@ async function register(req, res, next) {
       token,
       user: safeUser
     });
+    logger.audit("user_registered", req, {
+      targetUserId: result.insertId,
+      email: normalizedEmail
+    });
   } catch (error) {
     next(error);
   }
@@ -109,6 +114,11 @@ async function login(req, res, next) {
       token,
       user
     });
+    logger.audit("user_logged_in", req, {
+      targetUserId: user.id,
+      email: user.email,
+      role: user.role
+    });
   } catch (error) {
     next(error);
   }
@@ -124,6 +134,7 @@ async function logout(req, res, next) {
     res.json({
       message: "Logged out successfully"
     });
+    logger.audit("user_logged_out", req);
   } catch (error) {
     next(error);
   }

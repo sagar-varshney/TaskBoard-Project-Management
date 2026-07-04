@@ -5,16 +5,20 @@ const express = require("express");
 const agentRoutes = require("./routes/agent.routes");
 const authRoutes = require("./routes/auth.routes");
 const issueRoutes = require("./routes/issue.routes");
+const { requestLogger } = require("./middleware/request-logger.middleware");
 const projectRoutes = require("./routes/project.routes");
 const sprintRoutes = require("./routes/sprint.routes");
 const teamRoutes = require("./routes/team.routes");
 const ticketRoutes = require("./routes/ticket.routes");
 const userRoutes = require("./routes/user.routes");
+const logger = require("./utils/logger");
 
 const app = express();
 
 // Allows the Next.js frontend to call this API from a different port during development.
 app.use(cors());
+// Adds a request ID and structured request/response logging for API observability.
+app.use(requestLogger);
 // Parses JSON request bodies so controllers can read req.body.
 // File uploads use multipart/form-data, so JSON bodies can stay relatively small.
 app.use(express.json({ limit: "2mb" }));
@@ -34,12 +38,19 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/users", userRoutes);
 
 app.use((req, res) => {
+  logger.warn("api_route_not_found", {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.originalUrl,
+    userId: req.user?.id,
+    userRole: req.user?.role
+  });
   res.status(404).json({ message: "Route not found" });
 });
 
 // Central error handler: controllers call next(error), and this sends the final JSON response.
 app.use((error, req, res, next) => {
-  console.error(error);
+  logger.logError(error, req);
 
   if (error.code === "LIMIT_FILE_SIZE") {
     res.status(400).json({

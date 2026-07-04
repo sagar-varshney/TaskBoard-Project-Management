@@ -1,5 +1,6 @@
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
+const logger = require("../utils/logger");
 
 const allowedSprintStatuses = ["planned", "active", "completed"];
 
@@ -57,6 +58,12 @@ async function createSprint(req, res, next) {
         end_date: endDate || null,
         status
       }
+    });
+    logger.audit("sprint_created", req, {
+      sprintId: result.insertId,
+      projectId,
+      name: name.trim(),
+      status
     });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {

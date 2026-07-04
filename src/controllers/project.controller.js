@@ -1,5 +1,6 @@
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
+const logger = require("../utils/logger");
 
 async function listProjects(req, res, next) {
   try {
@@ -40,6 +41,11 @@ async function createProject(req, res, next) {
         description: description || null,
         owner_id: req.user.id
       }
+    });
+    logger.audit("project_created", req, {
+      projectId: result.insertId,
+      projectKey,
+      name: name.trim()
     });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") {

@@ -1,4 +1,5 @@
 const AppError = require("../utils/app-error");
+const logger = require("../utils/logger");
 const { runAgent } = require("../services/agent.service");
 
 async function chat(req, res, next) {
@@ -19,6 +20,12 @@ async function chat(req, res, next) {
       history: safeHistory,
       user: req.user,
       authorization: req.headers.authorization
+    });
+    logger.audit("agent_chat_queried", req, {
+      action: state.plan.tool,
+      changed: Boolean(state.changed),
+      messageLength: message.trim().length,
+      historyLength: safeHistory.length
     });
 
     res.json({

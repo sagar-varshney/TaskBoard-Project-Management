@@ -1,6 +1,7 @@
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
 const { summarizeTicket } = require("../services/gemini.service");
+const logger = require("../utils/logger");
 
 const allowedIssueTypes = ["bug", "task", "story"];
 const allowedPriorities = ["low", "medium", "high", "critical"];
@@ -233,6 +234,13 @@ async function createIssue(req, res, next) {
     const ticket = await findTicket(result.insertId);
     // First audit entry for the ticket.
     await logIssueActivity(ticket.id, req.user.id, "created_ticket");
+    logger.audit("issue_created", req, {
+      issueId: ticket.id,
+      ticketKey: ticket.ticket_key,
+      projectId,
+      issueType,
+      priority
+    });
     res.status(201).json({ ticket });
   } catch (error) {
     if (error.code === "ER_NO_REFERENCED_ROW_2") {
@@ -391,6 +399,11 @@ async function updateIssue(req, res, next) {
     const ticket = await findTicket(req.params.id);
     // Compare the old/new ticket and write audit records for changed fields.
     await logChangedFields(req.params.id, req.user.id, existingTicket, ticket, req.body);
+    logger.audit("issue_updated", req, {
+      issueId: Number(req.params.id),
+      ticketKey: ticket.ticket_key,
+      updatedFields: requestedFields
+    });
     res.json({
       message: "Ticket updated",
       ticket
@@ -509,6 +522,11 @@ async function createIssueComment(req, res, next) {
     );
     // Comment actions also appear in the audit timeline.
     await logIssueActivity(req.params.id, req.user.id, "added_comment");
+    logger.audit("issue_comment_added", req, {
+      issueId: Number(req.params.id),
+      commentId: result.insertId,
+      isInternal: Boolean(isInternal)
+    });
 
     const [comments] = await pool.execute(
       `SELECT
@@ -562,6 +580,11 @@ async function updateIssueComment(req, res, next) {
       [commentText.trim(), Boolean(isInternal), req.params.commentId]
     );
     await logIssueActivity(req.params.id, req.user.id, "edited_comment");
+    logger.audit("issue_comment_updated", req, {
+      issueId: Number(req.params.id),
+      commentId: Number(req.params.commentId),
+      isInternal: Boolean(isInternal)
+    });
 
     const [comments] = await pool.execute(
       `SELECT
@@ -607,6 +630,10 @@ async function deleteIssueComment(req, res, next) {
       [req.params.commentId]
     );
     await logIssueActivity(req.params.id, req.user.id, "deleted_comment");
+    logger.audit("issue_comment_deleted", req, {
+      issueId: Number(req.params.id),
+      commentId: Number(req.params.commentId)
+    });
 
     res.json({ message: "Comment deleted" });
   } catch (error) {

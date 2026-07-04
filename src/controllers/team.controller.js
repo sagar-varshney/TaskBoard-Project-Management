@@ -1,5 +1,6 @@
 const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
+const logger = require("../utils/logger");
 
 async function listTeams(req, res, next) {
   try {
@@ -64,6 +65,12 @@ async function createTeam(req, res, next) {
           description: description || null,
           member_count: memberIds.length
         }
+      });
+      logger.audit("scrum_team_created", req, {
+        teamId: result.insertId,
+        projectId,
+        name: name.trim(),
+        memberCount: memberIds.length
       });
     } catch (error) {
       await connection.rollback();
