@@ -10,6 +10,29 @@ const columns = [
   { key: "done", label: "Done" }
 ];
 
+function displayName(user) {
+  const name = `${user.first_name || ""} ${user.last_name || ""}`.trim();
+  return name || user.email || "Unnamed user";
+}
+
+function ticketTitle(ticket) {
+  return ticket.title?.trim() || "Untitled ticket";
+}
+
+function initialsFor(user) {
+  const name = displayName(user);
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function badgeClass(prefix, value) {
+  return `badge ${prefix}-${String(value || "unset").replaceAll("_", "-")}`;
+}
+
 function emptyTicketForm(projectId = "") {
   // Used when creating a fresh ticket or resetting the form after submit.
   return {
@@ -75,9 +98,11 @@ export default function Dashboard({ token, user, onLogout }) {
     return data;
   }
 
-  async function loadDashboard(projectId = selectedProjectId) {
+  async function loadDashboard(projectId = selectedProjectId, options = {}) {
     setIsLoading(true);
-    setMessage("");
+    if (!options.keepMessage) {
+      setMessage("");
+    }
 
     try {
       const ticketQuery = projectId ? `?projectId=${projectId}` : "";
@@ -109,19 +134,29 @@ export default function Dashboard({ token, user, onLogout }) {
 
   async function createProject(event) {
     event.preventDefault();
+    setMessage("");
+
+    if (!projectForm.key.trim() || !projectForm.name.trim()) {
+      setMessage("Project key and project name cannot be blank.");
+      return;
+    }
 
     try {
       const data = await apiRequest("/projects", {
         method: "POST",
-        body: JSON.stringify(projectForm)
+        body: JSON.stringify({
+          ...projectForm,
+          key: projectForm.key.trim(),
+          name: projectForm.name.trim()
+        })
       });
       const projectId = String(data.project.id);
 
       setProjectForm({ key: "", name: "", description: "" });
       setSelectedProjectId(projectId);
       setTicketForm(emptyTicketForm(projectId));
+      await loadDashboard(projectId, { keepMessage: true });
       setMessage("Project created successfully.");
-      await loadDashboard(projectId);
     } catch (error) {
       setMessage(error.message);
     }
@@ -129,15 +164,29 @@ export default function Dashboard({ token, user, onLogout }) {
 
   async function createTicket(event) {
     event.preventDefault();
+    setMessage("");
+
+    if (!ticketForm.projectId) {
+      setMessage("Select a project before creating a ticket.");
+      return;
+    }
+
+    if (!ticketForm.title.trim()) {
+      setMessage("Ticket title cannot be blank.");
+      return;
+    }
 
     try {
       await apiRequest("/tickets", {
         method: "POST",
-        body: JSON.stringify(ticketForm)
+        body: JSON.stringify({
+          ...ticketForm,
+          title: ticketForm.title.trim()
+        })
       });
       setTicketForm(emptyTicketForm(selectedProjectId));
+      await loadDashboard(selectedProjectId, { keepMessage: true });
       setMessage("Ticket created successfully.");
-      await loadDashboard(selectedProjectId);
     } catch (error) {
       setMessage(error.message);
     }
@@ -150,8 +199,8 @@ export default function Dashboard({ token, user, onLogout }) {
         method: "PATCH",
         body: JSON.stringify({ status })
       });
+      await loadDashboard(selectedProjectId, { keepMessage: true });
       setMessage("Ticket status updated.");
-      await loadDashboard(selectedProjectId);
     } catch (error) {
       setMessage(error.message);
     }
@@ -191,6 +240,7 @@ export default function Dashboard({ token, user, onLogout }) {
   const selectedProjectSprints = sprints.filter((sprint) => String(sprint.project_id) === String(ticketForm.projectId));
   const selectedProjectTeams = teams.filter((team) => String(team.project_id) === String(ticketForm.projectId));
   const isAdmin = user.role === "admin";
+  const activeProject = projects.find((project) => String(project.id) === String(selectedProjectId));
   const roleSummary = {
     admin: "Manage workspace planning, delegation, tickets, and AI insights.",
     developer: "Work your queue, update progress, and collaborate on tickets.",
@@ -201,8 +251,11 @@ export default function Dashboard({ token, user, onLogout }) {
     <main className={`dashboard-shell role-${user.role}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="sidebar-logo">T</span>
-          <strong>TaskBoard</strong>
+          <span className="sidebar-logo">TB</span>
+          <div>
+            <strong>TaskBoard</strong>
+            <small>Delivery workspace</small>
+          </div>
         </div>
         <nav aria-label="Dashboard navigation">
           <a className="nav-link active" href="#board">Board</a>
@@ -214,8 +267,11 @@ export default function Dashboard({ token, user, onLogout }) {
           {isAdmin ? <a className="nav-link" href="/admin/teams">Scrum teams</a> : null}
         </nav>
         <div className="sidebar-user">
-          <span>{user.first_name} {user.last_name}</span>
-          <small>{user.role}</small>
+          <span className="avatar">{initialsFor(user)}</span>
+          <div>
+            <span>{displayName(user)}</span>
+            <small>{user.role}</small>
+          </div>
         </div>
       </aside>
 
@@ -223,11 +279,19 @@ export default function Dashboard({ token, user, onLogout }) {
         <header className="dashboard-header">
           <div>
             <p className="dashboard-eyebrow">Workspace overview</p>
-            <h1>Ticket dashboard</h1>
+            <h1>{activeProject ? activeProject.name : "All project tickets"}</h1>
+            <p className="header-summary">
+              {activeProject
+                ? `${activeProject.project_key} board with ${tickets.length} visible tickets.`
+                : "A live view of planning, delivery, and completed work across the workspace."}
+            </p>
           </div>
-          <button className="logout-button" type="button" onClick={onLogout}>
-            Log out
-          </button>
+          <div className="header-actions">
+            <a className="secondary-action compact-link" href="#create-ticket">New ticket</a>
+            <button className="logout-button" type="button" onClick={onLogout}>
+              Log out
+            </button>
+          </div>
         </header>
 
         <section className="dashboard-controls">
@@ -243,7 +307,7 @@ export default function Dashboard({ token, user, onLogout }) {
             </select>
           </label>
           <div className="role-note">
-            Signed in as <strong>{user.role}</strong>
+            <span className={badgeClass("user-role", user.role)}>{user.role}</span>
             <span>{roleSummary}</span>
           </div>
         </section>
@@ -263,10 +327,10 @@ export default function Dashboard({ token, user, onLogout }) {
         ) : null}
 
         <section className="metric-grid" aria-label="Ticket metrics">
-          <div><span>Total tickets</span><strong>{tickets.length}</strong></div>
-          <div><span>To do</span><strong>{ticketsByStatus.todo.length}</strong></div>
-          <div><span>In progress</span><strong>{ticketsByStatus.in_progress.length}</strong></div>
-          <div><span>Done</span><strong>{ticketsByStatus.done.length}</strong></div>
+          <div><span>Total tickets</span><strong>{tickets.length}</strong><small>Visible in current scope</small></div>
+          <div><span>To do</span><strong>{ticketsByStatus.todo.length}</strong><small>Ready for pickup</small></div>
+          <div><span>In progress</span><strong>{ticketsByStatus.in_progress.length}</strong><small>Actively moving</small></div>
+          <div><span>Done</span><strong>{ticketsByStatus.done.length}</strong><small>Closed work</small></div>
         </section>
 
         <section className="ticket-board" id="board" aria-label="Ticket board">
@@ -283,12 +347,16 @@ export default function Dashboard({ token, user, onLogout }) {
                       <a href={`/tickets/${ticket.id}`} target="_blank" rel="noreferrer">
                         {ticket.ticket_key}
                       </a>
-                      <small>{ticket.priority}</small>
+                      <span className={badgeClass("priority", ticket.priority)}>{ticket.priority}</span>
                     </div>
-                    <h3>{ticket.title}</h3>
+                    <h3>{ticketTitle(ticket)}</h3>
                     <p>{ticket.description || "No description"}</p>
+                    <div className="ticket-meta-row">
+                      <span className={badgeClass("type", ticket.issue_type)}>{ticket.issue_type}</span>
+                      {ticket.assignee_email ? <span>{ticket.assignee_email}</span> : <span>Unassigned</span>}
+                    </div>
                     <footer>
-                      <span>{ticket.issue_type}</span>
+                      <span>{ticket.sprint_name || ticket.sprint || "No sprint"}</span>
                       {isAdmin ||
                       user.role === "developer" ||
                       ticket.assignee_id === user.id ||
@@ -325,7 +393,7 @@ export default function Dashboard({ token, user, onLogout }) {
         <section className="dashboard-forms">
           <form className="dashboard-form" id="create-ticket" onSubmit={createTicket}>
             <div>
-              <p className="dashboard-eyebrow">Ticket API</p>
+              <p className="dashboard-eyebrow">Create work</p>
               <h2>Create ticket</h2>
             </div>
             <label>
@@ -394,7 +462,7 @@ export default function Dashboard({ token, user, onLogout }) {
                       <option value="">Unassigned</option>
                       {users.map((listedUser) => (
                         <option key={listedUser.id} value={listedUser.id}>
-                          {listedUser.first_name} {listedUser.last_name} - {listedUser.role}
+                          {displayName(listedUser)} - {listedUser.role}
                         </option>
                       ))}
                     </select>
@@ -408,7 +476,7 @@ export default function Dashboard({ token, user, onLogout }) {
                       <option value="">Current user</option>
                       {users.map((listedUser) => (
                         <option key={listedUser.id} value={listedUser.id}>
-                          {listedUser.first_name} {listedUser.last_name} - {listedUser.role}
+                          {displayName(listedUser)} - {listedUser.role}
                         </option>
                       ))}
                     </select>
@@ -464,7 +532,7 @@ export default function Dashboard({ token, user, onLogout }) {
           {isAdmin ? (
             <form className="dashboard-form" id="create-project" onSubmit={createProject}>
             <div>
-              <p className="dashboard-eyebrow">Project API</p>
+              <p className="dashboard-eyebrow">Workspace setup</p>
               <h2>Create project</h2>
             </div>
             <label>

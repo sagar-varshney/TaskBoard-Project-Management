@@ -4,6 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
+function displayName(user) {
+  const name = `${user.first_name || ""} ${user.last_name || ""}`.trim();
+  return name || user.email || "Unnamed user";
+}
+
+function initialsFor(user) {
+  return displayName(user)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default function AdminManagement({ mode }) {
   // One component handles two admin pages: /admin/sprints and /admin/teams.
   const [currentUser, setCurrentUser] = useState(null);
@@ -127,8 +141,11 @@ export default function AdminManagement({ mode }) {
     <main className="dashboard-shell role-admin">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="sidebar-logo">T</span>
-          <strong>TaskBoard</strong>
+          <span className="sidebar-logo">TB</span>
+          <div>
+            <strong>TaskBoard</strong>
+            <small>Admin console</small>
+          </div>
         </div>
         <nav aria-label="Workspace management navigation">
           <a className="nav-link" href="/">Board</a>
@@ -142,8 +159,11 @@ export default function AdminManagement({ mode }) {
         </nav>
         {currentUser ? (
           <div className="sidebar-user">
-            <span>{currentUser.first_name} {currentUser.last_name}</span>
-            <small>{currentUser.role}</small>
+            <span className="avatar">{initialsFor(currentUser)}</span>
+            <div>
+              <span>{displayName(currentUser)}</span>
+              <small>{currentUser.role}</small>
+            </div>
           </div>
         ) : null}
       </aside>
@@ -253,7 +273,7 @@ export default function AdminManagement({ mode }) {
                   >
                     {users.map((user) => (
                       <option key={user.id} value={user.id}>
-                        {user.first_name} {user.last_name} - {user.role}
+                        {displayName(user)} - {user.role}
                       </option>
                     ))}
                   </select>

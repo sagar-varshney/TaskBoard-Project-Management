@@ -22,6 +22,18 @@ const attachmentCategoryOptions = [
   { value: "other", label: "Other" }
 ];
 
+function displayNameParts(firstName, lastName, fallback = "Unnamed user") {
+  return `${firstName || ""} ${lastName || ""}`.trim() || fallback;
+}
+
+function ticketTitle(ticket) {
+  return ticket.title?.trim() || "Untitled ticket";
+}
+
+function badgeClass(prefix, value) {
+  return `badge ${prefix}-${String(value || "unset").replaceAll("_", "-")}`;
+}
+
 function formatDate(value) {
   // Converts database timestamps into readable local date/time strings.
   if (!value) {
@@ -508,9 +520,13 @@ export default function TicketDetail({ ticketId }) {
     setMessage("");
 
     try {
+      const canManageInternalComments = ["admin", "developer"].includes(currentUser?.role);
       const data = await apiRequest(`/tickets/${ticketId}/comments`, {
         method: "POST",
-        body: JSON.stringify({ commentText, isInternal: isInternalComment })
+        body: JSON.stringify({
+          commentText,
+          isInternal: canManageInternalComments ? isInternalComment : false
+        })
       });
 
       setComments((current) => [...current, data.comment]);
@@ -539,11 +555,12 @@ export default function TicketDetail({ ticketId }) {
     setMessage("");
 
     try {
+      const canManageInternalComments = ["admin", "developer"].includes(currentUser?.role);
       const data = await apiRequest(`/tickets/${ticketId}/comments/${commentId}`, {
         method: "PATCH",
         body: JSON.stringify({
           commentText: editingCommentText,
-          isInternal: editingCommentInternal
+          isInternal: canManageInternalComments ? editingCommentInternal : false
         })
       });
 
@@ -574,6 +591,7 @@ export default function TicketDetail({ ticketId }) {
   }
 
   const isAdmin = currentUser?.role === "admin";
+  const canManageInternalComments = ["admin", "developer"].includes(currentUser?.role);
   const isDelegatedUser =
     // Developers can update work; members can update work only when assigned/owner.
     currentUser?.role === "developer" ||
@@ -584,13 +602,26 @@ export default function TicketDetail({ ticketId }) {
   const projectTeams = teams.filter((team) => team.project_id === ticket?.project_id);
 
   if (isLoading) {
-    return <main className="ticket-detail-shell"><p>Loading ticket...</p></main>;
+    return (
+      <main className="ticket-detail-shell">
+        <section className="loading-panel">
+          <div className="skeleton-line wide" />
+          <div className="skeleton-line" />
+          <div className="skeleton-grid">
+            <span />
+            <span />
+            <span />
+          </div>
+        </section>
+      </main>
+    );
   }
 
   if (!ticket) {
     return (
       <main className="ticket-detail-shell">
         <p className="dashboard-message">{message || "Ticket not found"}</p>
+        <a className="secondary-action compact-link" href="/" target="_self">Return to login</a>
       </main>
     );
   }
@@ -600,7 +631,12 @@ export default function TicketDetail({ ticketId }) {
       <header className="ticket-detail-header">
         <div>
           <p className="dashboard-eyebrow">{ticket.project_key}</p>
-          <h1>{ticket.ticket_key}: {ticket.title}</h1>
+          <h1>{ticket.ticket_key}: {ticketTitle(ticket)}</h1>
+          <div className="ticket-hero-meta">
+            <span className={badgeClass("status", ticket.status)}>{ticket.status}</span>
+            <span className={badgeClass("priority", ticket.priority)}>{ticket.priority}</span>
+            <span className={badgeClass("type", ticket.issue_type)}>{ticket.issue_type}</span>
+          </div>
         </div>
         <a className="secondary-action compact-link" href="/" target="_self">Back to dashboard</a>
       </header>
@@ -609,17 +645,31 @@ export default function TicketDetail({ ticketId }) {
 
       <section className="ticket-detail-grid">
         <section className="ticket-main-panel">
-          <h2>Description</h2>
-          <p>{ticket.description || "No description provided."}</p>
+          <section className="content-section">
+            <h2>Description</h2>
+            <p>{ticket.description || "No description provided."}</p>
+          </section>
 
-          <h2>Impact</h2>
-          <p>{ticket.impact || "No impact recorded."}</p>
+          <div className="content-two-up">
+            <section className="content-section">
+              <h2>Impact</h2>
+              <p>{ticket.impact || "No impact recorded."}</p>
+            </section>
 
-          <h2>Fix plan</h2>
-          <p>{ticket.fix_plan || "No fix plan recorded yet."}</p>
+            <section className="content-section">
+              <h2>Fix plan</h2>
+              <p>{ticket.fix_plan || "No fix plan recorded yet."}</p>
+            </section>
+          </div>
 
           <section className="attachments-panel">
-            <h2>Attachments</h2>
+            <div className="section-heading-row">
+              <div>
+                <p className="dashboard-eyebrow">Evidence and analysis</p>
+                <h2>Attachments</h2>
+              </div>
+              <span>{attachments.length} files</span>
+            </div>
             <form className="attachment-form" onSubmit={uploadAttachment}>
               <label>
                 Upload PDF, DOC, DOCX, JPEG, or PNG
@@ -743,7 +793,7 @@ export default function TicketDetail({ ticketId }) {
                         <strong>Attachment comments</strong>
                         {commentsForAttachment.map((comment) => (
                           <p key={comment.id}>
-                            <b>{comment.author_first_name} {comment.author_last_name}:</b> {comment.comment_text}
+                            <b>{displayNameParts(comment.author_first_name, comment.author_last_name, comment.author_email)}:</b> {comment.comment_text}
                           </p>
                         ))}
                         <form onSubmit={(event) => addAttachmentComment(event, attachment.id)}>
@@ -782,7 +832,13 @@ export default function TicketDetail({ ticketId }) {
           </section>
 
           <section className="comments-panel">
-            <h2>Comments</h2>
+            <div className="section-heading-row">
+              <div>
+                <p className="dashboard-eyebrow">Collaboration</p>
+                <h2>Comments</h2>
+              </div>
+              <span>{comments.length} notes</span>
+            </div>
             <form className="comment-form" onSubmit={addComment}>
               <textarea
                 required
@@ -791,21 +847,23 @@ export default function TicketDetail({ ticketId }) {
                 onChange={(event) => setCommentText(event.target.value)}
               />
               <button className="primary-action" type="submit">Add comment</button>
-              <label className="inline-check">
-                <input
-                  type="checkbox"
-                  checked={isInternalComment}
-                  onChange={(event) => setIsInternalComment(event.target.checked)}
-                />
-                Internal note
-              </label>
+              {canManageInternalComments ? (
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={isInternalComment}
+                    onChange={(event) => setIsInternalComment(event.target.checked)}
+                  />
+                  Internal note
+                </label>
+              ) : null}
             </form>
 
             <div className="comment-list">
               {comments.map((comment) => (
                 <article className="comment-item" key={comment.id}>
                   <div className="comment-meta">
-                    <strong>{comment.author_first_name} {comment.author_last_name}</strong>
+                    <strong>{displayNameParts(comment.author_first_name, comment.author_last_name, comment.author_email)}</strong>
                     <small>{formatDate(comment.created_at)}</small>
                     {comment.is_internal ? <span>Internal</span> : null}
                   </div>
@@ -815,14 +873,16 @@ export default function TicketDetail({ ticketId }) {
                         value={editingCommentText}
                         onChange={(event) => setEditingCommentText(event.target.value)}
                       />
-                      <label className="inline-check">
-                        <input
-                          type="checkbox"
-                          checked={editingCommentInternal}
-                          onChange={(event) => setEditingCommentInternal(event.target.checked)}
-                        />
-                        Internal note
-                      </label>
+                      {canManageInternalComments ? (
+                        <label className="inline-check">
+                          <input
+                            type="checkbox"
+                            checked={editingCommentInternal}
+                            onChange={(event) => setEditingCommentInternal(event.target.checked)}
+                          />
+                          Internal note
+                        </label>
+                      ) : null}
                       <div className="button-row">
                         <button className="primary-action" type="button" onClick={() => updateComment(comment.id)}>
                           Save
@@ -855,7 +915,10 @@ export default function TicketDetail({ ticketId }) {
         </section>
 
         <aside className="ticket-side-panel">
-          <h2>Ticket fields</h2>
+          <div>
+            <p className="dashboard-eyebrow">Issue details</p>
+            <h2>Ticket fields</h2>
+          </div>
           <dl className="ticket-field-list">
             <div><dt>Type</dt><dd>{ticket.issue_type}</dd></div>
             <div><dt>Status</dt><dd>{ticket.status}</dd></div>
@@ -917,7 +980,7 @@ export default function TicketDetail({ ticketId }) {
                   <option value="">Unassigned</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.first_name} {user.last_name} - {user.role}
+                      {displayNameParts(user.first_name, user.last_name, user.email)} - {user.role}
                     </option>
                   ))}
                 </select>
@@ -931,7 +994,7 @@ export default function TicketDetail({ ticketId }) {
                   <option value="">No owner</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.first_name} {user.last_name} - {user.role}
+                      {displayNameParts(user.first_name, user.last_name, user.email)} - {user.role}
                     </option>
                   ))}
                 </select>

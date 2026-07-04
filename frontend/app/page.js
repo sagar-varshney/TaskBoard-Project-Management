@@ -126,18 +126,29 @@ export default function HomePage() {
   return (
     <main className="auth-page">
       <section className="brand-panel" aria-label="TaskBoard overview">
-        <div className="brand-mark">T</div>
+        <div className="brand-mark">TB</div>
         <div>
           <p className="eyebrow">TaskBoard</p>
-          <h1>Account access for your project workspace</h1>
+          <h1>Plan, track, and ship team work with clarity.</h1>
           <p className="intro">
-            Register a user, log in with email and password, and verify the JWT
-            protected profile route from the same screen.
+            A focused workspace for project tickets, sprint planning, attachment reviews,
+            and AI-assisted updates across every delivery lane.
           </p>
+        </div>
+        <div className="brand-stats" aria-label="TaskBoard capabilities">
+          <span>Kanban board</span>
+          <span>Role-aware workflows</span>
+          <span>AI ticket assistant</span>
         </div>
       </section>
 
       <section className="auth-panel" aria-label="Authentication form">
+        <div className="auth-heading">
+          <p className="dashboard-eyebrow">Secure workspace</p>
+          <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+          <p>{mode === "login" ? "Sign in to continue to your board." : "Join the workspace and start tracking delivery work."}</p>
+        </div>
+
         <div className="mode-switch" role="tablist" aria-label="Auth mode">
           <button
             className={mode === "login" ? "active" : ""}
@@ -157,18 +168,7 @@ export default function HomePage() {
 
         <AuthForm mode={mode} isLoading={isLoading} onSubmit={handleSubmit} />
 
-        <button className="secondary-action" type="button" onClick={loadProfile}>
-          Check protected route
-        </button>
-
         {message ? <p className="status-message">{message}</p> : null}
-
-        {currentUser ? (
-          <div className="result-panel">
-            <p className="result-title">Current user</p>
-            <pre>{JSON.stringify(currentUser, null, 2)}</pre>
-          </div>
-        ) : null}
       </section>
     </main>
   );

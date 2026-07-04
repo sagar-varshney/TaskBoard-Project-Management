@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
+function displayName(user) {
+  const name = `${user.first_name || ""} ${user.last_name || ""}`.trim();
+  return name || user.email || "Unnamed user";
+}
+
+function ticketTitle(ticket) {
+  return ticket.title?.trim() || "Untitled ticket";
+}
+
+function badgeClass(prefix, value) {
+  return `badge ${prefix}-${String(value || "unset").replaceAll("_", "-")}`;
+}
+
 export default function MyTickets() {
   // Personal queue page shows tickets connected to the current user.
   const [tickets, setTickets] = useState([]);
@@ -63,7 +76,7 @@ export default function MyTickets() {
         <div>
           <p className="dashboard-eyebrow">Personal queue</p>
           <h1>My tickets</h1>
-          {currentUser ? <p>{currentUser.first_name} {currentUser.last_name} - {currentUser.role}</p> : null}
+          {currentUser ? <p>{displayName(currentUser)} - {currentUser.role}</p> : null}
         </div>
         <a className="secondary-action compact-link" href="/">Back to dashboard</a>
       </header>
@@ -75,10 +88,14 @@ export default function MyTickets() {
           <article className="ticket-card my-ticket-card" key={ticket.id}>
             <div className="ticket-card-header">
               <a href={`/tickets/${ticket.id}`}>{ticket.ticket_key}</a>
-              <small>{ticket.priority}</small>
+              <span className={badgeClass("priority", ticket.priority)}>{ticket.priority}</span>
             </div>
-            <h2>{ticket.title}</h2>
+            <h2>{ticketTitle(ticket)}</h2>
             <p>{ticket.description || "No description"}</p>
+            <div className="ticket-meta-row">
+              <span className={badgeClass("status", ticket.status)}>{ticket.status}</span>
+              <span className={badgeClass("type", ticket.issue_type)}>{ticket.issue_type}</span>
+            </div>
             <dl className="ticket-field-list compact-fields">
               <div><dt>Status</dt><dd>{ticket.status}</dd></div>
               <div><dt>Resolution</dt><dd>{ticket.resolution}</dd></div>
@@ -88,7 +105,7 @@ export default function MyTickets() {
           </article>
         ))}
 
-        {!isLoading && tickets.length === 0 ? (
+        {!isLoading && !message && tickets.length === 0 ? (
           <p className="empty-column">No tickets are assigned to you, owned by you, or reported by you.</p>
         ) : null}
       </section>

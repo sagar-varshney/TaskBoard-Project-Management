@@ -11,6 +11,7 @@ const initialValues = {
 
 export default function AuthForm({ mode, isLoading, onSubmit }) {
   const [formValues, setFormValues] = useState(initialValues);
+  const [formError, setFormError] = useState("");
   const isRegister = mode === "register";
 
   function updateField(event) {
@@ -24,16 +25,32 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
 
   function handleSubmit(event) {
     event.preventDefault();
+    setFormError("");
+
+    if (!formValues.email.trim()) {
+      setFormError("Email is required.");
+      return;
+    }
+
+    if (!formValues.password) {
+      setFormError("Password is required.");
+      return;
+    }
+
+    if (isRegister && (!formValues.firstName.trim() || !formValues.lastName.trim())) {
+      setFormError("First name and last name cannot be blank.");
+      return;
+    }
 
     // Login sends only email/password. Register adds firstName/lastName.
     const payload = {
-      email: formValues.email,
+      email: formValues.email.trim(),
       password: formValues.password
     };
 
     if (isRegister) {
-      payload.firstName = formValues.firstName;
-      payload.lastName = formValues.lastName;
+      payload.firstName = formValues.firstName.trim();
+      payload.lastName = formValues.lastName.trim();
     }
 
     onSubmit(payload);
@@ -95,6 +112,8 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
           </label>
         </div>
       ) : null}
+
+      {formError ? <p className="dashboard-message error-message">{formError}</p> : null}
 
       <button className="primary-action" type="submit" disabled={isLoading}>
         {isLoading ? "Please wait..." : isRegister ? "Create account" : "Log in"}
