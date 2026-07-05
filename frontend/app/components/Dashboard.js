@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AgentChat from "./AgentChat";
+import ThemeToggle from "./ThemeToggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const columns = [
@@ -288,6 +289,7 @@ export default function Dashboard({ token, user, onLogout }) {
           </div>
           <div className="header-actions">
             <a className="secondary-action compact-link" href="#create-ticket">New ticket</a>
+            <ThemeToggle />
             <button className="logout-button" type="button" onClick={onLogout}>
               Log out
             </button>

@@ -1,4 +1,5 @@
 const { Annotation, END, START, StateGraph } = require("@langchain/langgraph");
+const { internalApiBaseUrl } = require("../config/env");
 const AppError = require("../utils/app-error");
 const { generateJson } = require("./gemini.service");
 
@@ -16,7 +17,7 @@ const AgentState = Annotation.Root({
 });
 
 function apiBaseUrl() {
-  return `http://127.0.0.1:${process.env.PORT || 5000}/api`;
+  return `${internalApiBaseUrl()}/api`;
 }
 
 async function callTaskBoardApi(path, authorization, options = {}) {

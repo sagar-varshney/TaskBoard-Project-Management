@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { pool } = require("../config/db");
+const { config } = require("../config/env");
 const AppError = require("../utils/app-error");
 
 async function authenticate(req, res, next) {
@@ -13,7 +14,7 @@ async function authenticate(req, res, next) {
 
     const token = authHeader.split(" ")[1];
     // jwt.verify checks the signature and expiry using the same secret used during login/register.
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, config.jwt.secret);
 
     // Soft-deleted users are blocked even if they still have an old valid token.
     const [rows] = await pool.execute(

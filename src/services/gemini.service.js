@@ -1,7 +1,8 @@
+const { config } = require("../config/env");
 const AppError = require("../utils/app-error");
 
-const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+const geminiModel = config.ai.geminiModel;
+const groqModel = config.ai.groqModel;
 
 function parseJsonResponse(text) {
   try {
@@ -17,7 +18,7 @@ function isFallbackCandidate(error) {
 }
 
 async function generateWithGemini(prompt) {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!config.ai.geminiApiKey) {
     throw new AppError("Gemini API key is not configured", 503);
   }
 
@@ -27,7 +28,7 @@ async function generateWithGemini(prompt) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY
+        "x-goog-api-key": config.ai.geminiApiKey
       },
       body: JSON.stringify({
         contents: [
@@ -66,7 +67,7 @@ async function generateWithGemini(prompt) {
 }
 
 async function generateAttachmentInsight({ ticket, attachment, base64Data, prompt }) {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!config.ai.geminiApiKey) {
     throw new AppError("Gemini API key is required to analyze attachments", 503);
   }
 
@@ -76,7 +77,7 @@ async function generateAttachmentInsight({ ticket, attachment, base64Data, promp
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY
+        "x-goog-api-key": config.ai.geminiApiKey
       },
       body: JSON.stringify({
         contents: [
@@ -131,14 +132,14 @@ User request: ${prompt || "Analyze this attachment for ticket triage."}
 }
 
 async function generateWithGroq(prompt) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!config.ai.groqApiKey) {
     throw new AppError("Groq API key is not configured", 503);
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${config.ai.groqApiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -174,11 +175,11 @@ async function generateJson(prompt) {
   try {
     return await generateWithGemini(prompt);
   } catch (error) {
-    if (process.env.GROQ_API_KEY && isFallbackCandidate(error)) {
+    if (config.ai.groqApiKey && isFallbackCandidate(error)) {
       return generateWithGroq(prompt);
     }
 
-    if (!process.env.GEMINI_API_KEY && process.env.GROQ_API_KEY) {
+    if (!config.ai.geminiApiKey && config.ai.groqApiKey) {
       return generateWithGroq(prompt);
     }
 

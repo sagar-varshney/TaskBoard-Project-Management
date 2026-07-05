@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/Dashboard";
+import ThemeToggle from "./components/ThemeToggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
@@ -143,6 +144,11 @@ export default function HomePage() {
       </section>
 
       <section className="auth-panel" aria-label="Authentication form">
+        <div className="auth-topline">
+          <span>TaskBoard</span>
+          <ThemeToggle />
+        </div>
+
         <div className="auth-heading">
           <p className="dashboard-eyebrow">Secure workspace</p>
           <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>

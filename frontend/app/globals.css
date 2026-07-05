@@ -1,8 +1,11 @@
 :root {
+  color-scheme: light;
   --background: #f4f6f8;
   --surface: #ffffff;
   --surface-muted: #f8fafc;
   --surface-strong: #eef3f8;
+  --field: #ffffff;
+  --field-muted: #f8fafc;
   --ink: #101828;
   --ink-soft: #344054;
   --muted: #667085;
@@ -19,10 +22,61 @@
   --red-soft: #fff0ef;
   --purple: #6941c6;
   --purple-soft: #f1edff;
+  --success-text: #064e3b;
+  --warning-text: #7a5200;
+  --sidebar: #111827;
+  --sidebar-admin: #10233f;
+  --sidebar-developer: #12352f;
+  --sidebar-member: #1f2937;
+  --board-column: #e9eef5;
+  --focus-ring: rgba(29, 95, 208, 0.14);
+  --white: #ffffff;
   --shadow: 0 20px 50px rgba(16, 24, 40, 0.12);
   --shadow-soft: 0 10px 28px rgba(16, 24, 40, 0.08);
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --panel-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --brand-overlay: linear-gradient(120deg, rgba(8, 29, 58, 0.82), rgba(24, 61, 89, 0.58));
   --radius: 8px;
   --radius-sm: 6px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #060608;
+  --surface: #0f1218;
+  --surface-muted: #151a23;
+  --surface-strong: #1d2430;
+  --field: #0b0f16;
+  --field-muted: #111722;
+  --ink: #f3f6fb;
+  --ink-soft: #d9e2ef;
+  --muted: #9aa8bc;
+  --line: #253244;
+  --line-strong: #35465d;
+  --blue: #6ea8ff;
+  --blue-dark: #a8c7ff;
+  --blue-soft: rgba(57, 123, 255, 0.16);
+  --green: #52d79b;
+  --green-soft: rgba(82, 215, 155, 0.14);
+  --amber: #ffba66;
+  --amber-soft: rgba(255, 186, 102, 0.16);
+  --red: #ff8a80;
+  --red-soft: rgba(255, 138, 128, 0.14);
+  --purple: #b9a7ff;
+  --purple-soft: rgba(185, 167, 255, 0.16);
+  --success-text: #b7f7d4;
+  --warning-text: #ffe0a3;
+  --sidebar: #05070b;
+  --sidebar-admin: #07111f;
+  --sidebar-developer: #071b17;
+  --sidebar-member: #0b1018;
+  --board-column: #111720;
+  --focus-ring: rgba(110, 168, 255, 0.2);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.46);
+  --shadow-soft: 0 14px 32px rgba(0, 0, 0, 0.34);
+  --card-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  --panel-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+  --brand-overlay: linear-gradient(120deg, rgba(3, 6, 12, 0.9), rgba(20, 35, 58, 0.66));
 }
 
 * {
@@ -86,7 +140,7 @@ label {
 input,
 select,
 textarea {
-  background: #ffffff;
+  background: var(--field);
   border: 1px solid var(--line);
   color: var(--ink);
   min-height: 42px;
@@ -105,7 +159,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(29, 95, 208, 0.14);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 pre {
@@ -134,7 +188,7 @@ p {
 .brand-panel {
   align-content: space-between;
   background:
-    linear-gradient(120deg, rgba(8, 29, 58, 0.82), rgba(24, 61, 89, 0.58)),
+    var(--brand-overlay),
     url("https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1600&q=80");
   background-position: center;
   background-size: cover;
@@ -148,7 +202,7 @@ p {
 .brand-mark,
 .sidebar-logo {
   align-items: center;
-  background: #ffffff;
+  background: var(--white);
   color: var(--blue);
   display: flex;
   font-weight: 800;
@@ -221,6 +275,16 @@ h1 {
   gap: 5px;
 }
 
+.auth-topline {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
 .auth-heading h2 {
   font-size: 28px;
   margin: 0;
@@ -248,7 +312,7 @@ h1 {
 }
 
 .mode-switch button.active {
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: var(--shadow-soft);
   color: var(--ink);
   font-weight: 800;
@@ -273,7 +337,8 @@ h1 {
 
 .primary-action,
 .secondary-action,
-.logout-button {
+.logout-button,
+.theme-toggle {
   align-items: center;
   border: 0;
   cursor: pointer;
@@ -287,7 +352,7 @@ h1 {
 
 .primary-action {
   background: var(--blue);
-  color: #ffffff;
+  color: var(--white);
   box-shadow: 0 10px 20px rgba(29, 95, 208, 0.18);
 }
 
@@ -302,21 +367,41 @@ h1 {
 }
 
 .secondary-action,
-.logout-button {
-  background: #ffffff;
+.logout-button,
+.theme-toggle {
+  background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink-soft);
 }
 
 .secondary-action:hover,
-.logout-button:hover {
+.logout-button:hover,
+.theme-toggle:hover {
   border-color: var(--line-strong);
   box-shadow: var(--shadow-soft);
 }
 
+.theme-toggle {
+  gap: 8px;
+  min-height: 40px;
+}
+
+.theme-toggle span:first-child {
+  align-items: center;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  color: var(--blue-dark);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
 .danger-action {
   background: var(--red-soft);
-  border-color: #ffd0cc;
+  border-color: color-mix(in srgb, var(--red) 34%, transparent);
   color: var(--red);
 }
 
@@ -327,9 +412,9 @@ h1 {
 .status-message,
 .dashboard-message {
   background: var(--green-soft);
-  border: 1px solid #bbebd3;
+  border: 1px solid color-mix(in srgb, var(--green) 38%, transparent);
   border-left: 4px solid var(--green);
-  color: #064e3b;
+  color: var(--success-text);
   line-height: 1.5;
   margin: 0;
   padding: 12px 14px;
@@ -337,7 +422,7 @@ h1 {
 
 .error-message {
   background: var(--red-soft);
-  border-color: #ffd0cc;
+  border-color: color-mix(in srgb, var(--red) 34%, transparent);
   border-left-color: var(--red);
   color: var(--red);
 }
@@ -350,8 +435,8 @@ h1 {
 }
 
 .sidebar {
-  background: #111827;
-  color: #ffffff;
+  background: var(--sidebar);
+  color: var(--white);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -362,15 +447,15 @@ h1 {
 }
 
 .dashboard-shell.role-admin .sidebar {
-  background: #10233f;
+  background: var(--sidebar-admin);
 }
 
 .dashboard-shell.role-developer .sidebar {
-  background: #12352f;
+  background: var(--sidebar-developer);
 }
 
 .dashboard-shell.role-member .sidebar {
-  background: #1f2937;
+  background: var(--sidebar-member);
 }
 
 .sidebar-brand {
@@ -544,7 +629,7 @@ h1 {
 .status-blocked,
 .user-role-admin {
   background: var(--red-soft);
-  border-color: #ffd0cc;
+  border-color: color-mix(in srgb, var(--red) 34%, transparent);
   color: var(--red);
 }
 
@@ -552,7 +637,7 @@ h1 {
 .status-in-progress,
 .user-role-developer {
   background: var(--amber-soft);
-  border-color: #ffe0a3;
+  border-color: color-mix(in srgb, var(--amber) 34%, transparent);
   color: var(--amber);
 }
 
@@ -560,26 +645,26 @@ h1 {
 .status-done,
 .user-role-member {
   background: var(--green-soft);
-  border-color: #bbebd3;
+  border-color: color-mix(in srgb, var(--green) 34%, transparent);
   color: var(--green);
 }
 
 .status-todo,
 .type-task {
   background: var(--blue-soft);
-  border-color: #c6dbff;
+  border-color: color-mix(in srgb, var(--blue) 34%, transparent);
   color: var(--blue-dark);
 }
 
 .type-bug {
   background: var(--red-soft);
-  border-color: #ffd0cc;
+  border-color: color-mix(in srgb, var(--red) 34%, transparent);
   color: var(--red);
 }
 
 .type-story {
   background: var(--purple-soft);
-  border-color: #d8ccff;
+  border-color: color-mix(in srgb, var(--purple) 34%, transparent);
   color: var(--purple);
 }
 
@@ -597,7 +682,7 @@ h1 {
 .management-list {
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .metric-grid div {
@@ -629,7 +714,7 @@ h1 {
 }
 
 .ticket-column {
-  background: #e9eef5;
+  background: var(--board-column);
   border: 1px solid var(--line);
   min-height: 360px;
   padding: 12px;
@@ -647,7 +732,7 @@ h1 {
 }
 
 .column-header span {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
@@ -666,7 +751,7 @@ h1 {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--card-shadow);
   display: grid;
   gap: 11px;
   padding: 13px;
@@ -740,7 +825,7 @@ h1 {
 
 .ticket-actions button {
   background: var(--blue-soft);
-  border: 1px solid #c6dbff;
+  border: 1px solid color-mix(in srgb, var(--blue) 36%, transparent);
   color: var(--blue-dark);
   cursor: pointer;
   font-size: 12px;
@@ -750,8 +835,8 @@ h1 {
 }
 
 .ai-insight {
-  background: #ffffff;
-  border: 1px solid #bbebd3;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--green) 38%, transparent);
   border-left: 4px solid var(--green);
   display: grid;
   gap: 9px;
@@ -807,7 +892,7 @@ h1 {
   align-items: flex-end;
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  box-shadow: var(--panel-shadow);
   display: flex;
   gap: 18px;
   justify-content: space-between;
@@ -979,7 +1064,7 @@ h1 {
 }
 
 .attachment-preview {
-  background: #ffffff;
+  background: var(--field);
   border: 1px solid var(--line);
   cursor: zoom-in;
   display: block;
@@ -1006,7 +1091,7 @@ h1 {
 
 .attachment-insight,
 .attachment-comments {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   display: grid;
   gap: 8px;
@@ -1015,7 +1100,7 @@ h1 {
 }
 
 .attachment-insight pre {
-  background: var(--surface-muted);
+  background: var(--field-muted);
   border: 1px solid var(--line);
   font-size: 12px;
   max-height: 180px;
@@ -1029,7 +1114,7 @@ h1 {
 
 .comment-meta span {
   background: var(--amber-soft);
-  color: #7a5200;
+  color: var(--warning-text);
   font-size: 12px;
   font-weight: 900;
   padding: 4px 8px;
@@ -1108,7 +1193,7 @@ h1 {
   background: var(--ink);
   border: 0;
   box-shadow: var(--shadow-soft);
-  color: #ffffff;
+  color: var(--background);
   cursor: pointer;
   font-weight: 900;
   min-height: 42px;
@@ -1116,7 +1201,7 @@ h1 {
 }
 
 .agent-panel {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   display: grid;
@@ -1172,7 +1257,7 @@ h1 {
 }
 
 .agent-suggestions button {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   color: var(--ink);
   cursor: pointer;
@@ -1189,7 +1274,7 @@ h1 {
 .agent-input button {
   background: var(--blue);
   border: 0;
-  color: #ffffff;
+  color: var(--white);
   cursor: pointer;
   font-weight: 800;
   padding: 0 14px;
@@ -1201,7 +1286,7 @@ h1 {
 }
 
 .loading-panel {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   display: grid;
   gap: 14px;
@@ -1211,7 +1296,7 @@ h1 {
 .skeleton-line,
 .skeleton-grid span {
   animation: pulse 1.2s ease-in-out infinite;
-  background: linear-gradient(90deg, #eef2f6, #f8fafc, #eef2f6);
+  background: linear-gradient(90deg, var(--surface-strong), var(--surface-muted), var(--surface-strong));
   background-size: 200% 100%;
   height: 18px;
 }

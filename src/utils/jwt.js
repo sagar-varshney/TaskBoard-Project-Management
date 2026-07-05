@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { config } = require("../config/env");
 
 function signToken(user) {
   // The payload is intentionally small: the database remains the source of truth for role/user details.
@@ -8,9 +9,9 @@ function signToken(user) {
       email: user.email,
       tokenVersion: user.token_version || 0
     },
-    process.env.JWT_SECRET,
+    config.jwt.secret,
     {
-      expiresIn: process.env.JWT_EXPIRES_IN || "1d"
+      expiresIn: config.jwt.expiresIn
     }
   );
 }

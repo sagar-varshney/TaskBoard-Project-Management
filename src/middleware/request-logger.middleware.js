@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { config } = require("../config/env");
 const logger = require("../utils/logger");
 
 function requestLogger(req, res, next) {
@@ -10,7 +11,7 @@ function requestLogger(req, res, next) {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     const shouldLogBody =
       req.method !== "GET" &&
-      (res.statusCode >= 400 || process.env.LOG_REQUEST_BODY === "true");
+      (res.statusCode >= 400 || config.logging.includeRequestBody);
 
     logger.info("api_request_completed", {
       requestId: req.requestId,

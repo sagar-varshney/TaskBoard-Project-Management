@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
@@ -174,7 +175,10 @@ export default function AdminManagement({ mode }) {
             <p className="dashboard-eyebrow">Admin workspace</p>
             <h1>{isSprintMode ? "Sprint management" : "Scrum team management"}</h1>
           </div>
-          <a className="secondary-action compact-link" href="/">Back to board</a>
+          <div className="header-actions">
+            <ThemeToggle />
+            <a className="secondary-action compact-link" href="/">Back to board</a>
+          </div>
         </header>
 
         {message ? <p className="dashboard-message">{message}</p> : null}

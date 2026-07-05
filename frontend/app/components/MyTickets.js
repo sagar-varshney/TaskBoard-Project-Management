@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
@@ -78,7 +79,10 @@ export default function MyTickets() {
           <h1>My tickets</h1>
           {currentUser ? <p>{displayName(currentUser)} - {currentUser.role}</p> : null}
         </div>
-        <a className="secondary-action compact-link" href="/">Back to dashboard</a>
+        <div className="header-actions">
+          <ThemeToggle />
+          <a className="secondary-action compact-link" href="/">Back to dashboard</a>
+        </div>
       </header>
 
       {message ? <p className="dashboard-message">{message}</p> : null}

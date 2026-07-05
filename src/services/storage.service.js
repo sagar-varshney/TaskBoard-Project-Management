@@ -7,21 +7,19 @@ const {
   S3Client
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const { config } = require("../config/env");
 const AppError = require("../utils/app-error");
 
-const localUploadRoot = path.join(process.cwd(), "uploads", "tickets");
+const localUploadRoot = path.isAbsolute(config.storage.localUploadRoot)
+  ? config.storage.localUploadRoot
+  : path.join(process.cwd(), config.storage.localUploadRoot);
 
 function storageProvider() {
-  return (process.env.STORAGE_PROVIDER || "local").toLowerCase();
+  return config.storage.provider;
 }
 
 function r2Configuration() {
-  const values = {
-    accountId: process.env.R2_ACCOUNT_ID,
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    bucket: process.env.R2_BUCKET
-  };
+  const values = config.storage.r2;
 
   if (storageProvider() === "r2" && Object.values(values).some((value) => !value)) {
     throw new AppError("R2 storage is selected but its credentials are incomplete", 503);

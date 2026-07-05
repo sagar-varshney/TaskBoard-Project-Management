@@ -1,8 +1,11 @@
 const fs = require("fs/promises");
 const path = require("path");
+const { config } = require("../config/env");
 
-const logDirectory = process.env.LOG_DIR || path.join(process.cwd(), "logs");
-const logToConsole = process.env.LOG_TO_CONSOLE !== "false";
+const logDirectory = path.isAbsolute(config.logging.directory)
+  ? config.logging.directory
+  : path.join(process.cwd(), config.logging.directory);
+const logToConsole = config.logging.toConsole;
 const sensitiveKeys = new Set([
   "authorization",
   "cookie",
@@ -111,7 +114,7 @@ function logError(errorValue, req, details = {}) {
     errorName: errorValue.name,
     errorCode: errorValue.code,
     message: errorValue.message,
-    stack: process.env.NODE_ENV === "production" ? undefined : errorValue.stack
+    stack: config.app.isProduction ? undefined : errorValue.stack
   });
 }
 

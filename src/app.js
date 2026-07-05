@@ -1,9 +1,9 @@
-require("dotenv").config();
-
 const cors = require("cors");
 const express = require("express");
 const agentRoutes = require("./routes/agent.routes");
 const authRoutes = require("./routes/auth.routes");
+const { config } = require("./config/env");
+const { getApiDocsHtml, getOpenApiDocument } = require("./docs/openapi");
 const issueRoutes = require("./routes/issue.routes");
 const { requestLogger } = require("./middleware/request-logger.middleware");
 const projectRoutes = require("./routes/project.routes");
@@ -15,8 +15,20 @@ const logger = require("./utils/logger");
 
 const app = express();
 
-// Allows the Next.js frontend to call this API from a different port during development.
-app.use(cors());
+// Allows only configured frontend origins to call the API across domains.
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || config.cors.origins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Origin is not allowed by CORS"));
+    },
+    credentials: true
+  })
+);
 // Adds a request ID and structured request/response logging for API observability.
 app.use(requestLogger);
 // Parses JSON request bodies so controllers can read req.body.
@@ -24,7 +36,23 @@ app.use(requestLogger);
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({
+    status: "ok",
+    service: config.app.name,
+    version: config.app.version,
+    environment: config.app.environment,
+    storageProvider: config.storage.provider,
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get("/api/openapi.json", (req, res) => {
+  res.json(getOpenApiDocument());
+});
+
+app.get("/api/docs", (req, res) => {
+  res.type("html").send(getApiDocsHtml());
 });
 
 // Route groups keep each feature area separate: auth, projects, tickets, teams, etc.

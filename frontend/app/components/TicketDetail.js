@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const statusOptions = [
@@ -638,7 +639,10 @@ export default function TicketDetail({ ticketId }) {
             <span className={badgeClass("type", ticket.issue_type)}>{ticket.issue_type}</span>
           </div>
         </div>
-        <a className="secondary-action compact-link" href="/" target="_self">Back to dashboard</a>
+        <div className="header-actions">
+          <ThemeToggle />
+          <a className="secondary-action compact-link" href="/" target="_self">Back to dashboard</a>
+        </div>
       </header>
 
       {message ? <p className="dashboard-message">{message}</p> : null}
