@@ -6,7 +6,7 @@ database
 logs
 uploads
 manual-test-assets
-docs
+/docs
 node_modules
 README.md
 .vscode
