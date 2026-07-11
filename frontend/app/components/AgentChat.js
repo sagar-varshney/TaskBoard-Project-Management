@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
+import { apiUrl } from "../config/api";
 
 const starterMessages = [
   "Show all tickets",
@@ -31,7 +30,7 @@ export default function AgentChat({ token, role, onChanged }) {
     setIsSending(true);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/agent/chat`, {
+      const response = await fetch(apiUrl("/agent/chat"), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

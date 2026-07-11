@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiUrl } from "../config/api";
 import ThemeToggle from "./ThemeToggle";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
 function displayName(user) {
   const name = `${user.first_name || ""} ${user.last_name || ""}`.trim();
@@ -36,7 +35,7 @@ export default function MyTickets() {
       throw new Error("Your login session is missing. Return to the dashboard and log in again.");
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await fetch(apiUrl(path), {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json"

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiUrl } from "../config/api";
 import ThemeToggle from "./ThemeToggle";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 
 function displayName(user) {
   const name = `${user.first_name || ""} ${user.last_name || ""}`.trim();
@@ -55,7 +54,7 @@ export default function AdminManagement({ mode }) {
   }, [mode]);
 
   async function apiRequest(path, options = {}) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await fetch(apiUrl(path), {
       ...options,
       headers: {
         ...authHeaders,

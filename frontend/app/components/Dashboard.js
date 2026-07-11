@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiUrl } from "../config/api";
 import AgentChat from "./AgentChat";
 import ThemeToggle from "./ThemeToggle";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const columns = [
   { key: "todo", label: "To do" },
   { key: "in_progress", label: "In progress" },
@@ -83,7 +83,7 @@ export default function Dashboard({ token, user, onLogout }) {
 
   async function apiRequest(path, options = {}) {
     // Small wrapper so every dashboard API call automatically includes the JWT.
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await fetch(apiUrl(path), {
       ...options,
       headers: {
         ...authHeaders,

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/Dashboard";
 import ThemeToggle from "./components/ThemeToggle";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
+import { apiUrl } from "./config/api";
 
 export default function HomePage() {
   // This page owns the authentication state. Once logged in, it renders the dashboard.
@@ -32,7 +31,7 @@ export default function HomePage() {
 
     const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
     // Login/register share one form; the current mode chooses the backend endpoint.
-    const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+    const response = await fetch(apiUrl(endpoint), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -77,7 +76,7 @@ export default function HomePage() {
     setMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/auth/me`, {
+      const response = await fetch(apiUrl("/auth/me"), {
         headers: {
           // This is how the frontend sends the JWT to protected backend routes.
           Authorization: `Bearer ${savedToken}`
@@ -103,7 +102,7 @@ export default function HomePage() {
 
     if (savedToken) {
       try {
-        await fetch(`${apiBaseUrl}/auth/logout`, {
+        await fetch(apiUrl("/auth/logout"), {
           method: "POST",
           headers: {
             Authorization: `Bearer ${savedToken}`

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "../config/api";
 import ThemeToggle from "./ThemeToggle";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5001/api";
 const statusOptions = [
   { value: "todo", label: "To do" },
   { value: "in_progress", label: "In progress" },
@@ -114,7 +114,7 @@ export default function TicketDetail({ ticketId }) {
       throw new Error("Your login session is missing. Return to the dashboard and log in again.");
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await fetch(apiUrl(path), {
       ...options,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -170,7 +170,7 @@ export default function TicketDetail({ ticketId }) {
 
     const previewEntries = await Promise.all(
       imageAttachments.map(async (attachment) => {
-        const response = await fetch(`${apiBaseUrl}/tickets/${ticketId}/attachments/${attachment.id}/download`, {
+        const response = await fetch(apiUrl(`/tickets/${ticketId}/attachments/${attachment.id}/download`), {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -354,7 +354,7 @@ export default function TicketDetail({ ticketId }) {
       const token = localStorage.getItem("jiraCloneToken");
       const request = new XMLHttpRequest();
 
-      request.open("POST", `${apiBaseUrl}/tickets/${ticketId}/attachments`);
+      request.open("POST", apiUrl(`/tickets/${ticketId}/attachments`));
       request.setRequestHeader("Authorization", `Bearer ${token}`);
       request.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -426,7 +426,7 @@ export default function TicketDetail({ ticketId }) {
 
     try {
       const token = localStorage.getItem("jiraCloneToken");
-      const response = await fetch(`${apiBaseUrl}/tickets/${ticketId}/attachments/${attachment.id}/download`, {
+      const response = await fetch(apiUrl(`/tickets/${ticketId}/attachments/${attachment.id}/download`), {
         headers: {
           Authorization: `Bearer ${token}`
         }
