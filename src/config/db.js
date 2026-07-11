@@ -3,7 +3,8 @@ const { config } = require("./env");
 
 const sslOptions = config.db.ssl
   ? {
-      rejectUnauthorized: config.db.sslRejectUnauthorized
+      rejectUnauthorized: config.db.sslRejectUnauthorized,
+      ...(config.db.sslCa ? { ca: config.db.sslCa.replace(/\\n/g, "\n") } : {})
     }
   : undefined;
 
