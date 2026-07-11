@@ -28,6 +28,16 @@ function readEnum(name, allowedValues, fallback) {
   return value;
 }
 
+function readBoolean(name, fallback = false) {
+  const rawValue = process.env[name];
+
+  if (rawValue === undefined || rawValue === "") {
+    return fallback;
+  }
+
+  return ["1", "true", "yes", "on"].includes(rawValue.toLowerCase());
+}
+
 function readList(name, fallbackValues = []) {
   const rawValue = process.env[name];
 
@@ -91,7 +101,9 @@ const config = {
     port: readNumber("DB_PORT", 3306),
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
-    name: process.env.DB_NAME || "jira_clone"
+    name: process.env.DB_NAME || "jira_clone",
+    ssl: readBoolean("DB_SSL", false),
+    sslRejectUnauthorized: readBoolean("DB_SSL_REJECT_UNAUTHORIZED", true)
   },
   jwt: {
     secret: process.env.JWT_SECRET || "development_only_change_me",

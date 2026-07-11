@@ -1,0 +1,14 @@
+.env
+.env.*
+.vercel
+frontend
+database
+logs
+uploads
+manual-test-assets
+docs
+node_modules
+README.md
+.vscode
+npm-debug.log*
+.DS_Store

@@ -1,6 +1,12 @@
 const mysql = require("mysql2/promise");
 const { config } = require("./env");
 
+const sslOptions = config.db.ssl
+  ? {
+      rejectUnauthorized: config.db.sslRejectUnauthorized
+    }
+  : undefined;
+
 // A connection pool reuses MySQL connections instead of opening a new one per request.
 const pool = mysql.createPool({
   host: config.db.host,
@@ -8,6 +14,7 @@ const pool = mysql.createPool({
   user: config.db.user,
   password: config.db.password,
   database: config.db.name,
+  ssl: sslOptions,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
