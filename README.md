@@ -21,8 +21,8 @@ Core capabilities include:
 
 | Service | URL |
 | --- | --- |
-| Frontend | [https://taskboard-frontend.vercel.app](https://taskboard-frontend.vercel.app) |
-| Backend API | [https://taskboard-api.vercel.app](https://taskboard-api.vercel.app) |
+| Frontend | [https://taskboard-frontend-ochre.vercel.app](https://taskboard-frontend-ochre.vercel.app) |
+| Backend API | [https://taskboard-api-ten.vercel.app](https://taskboard-api-ten.vercel.app) |
 
 The backend exposes API routes under `/api`, including `/api/health`, `/api/docs`, and `/api/openapi.json`.
 
@@ -389,9 +389,9 @@ Recommended production settings:
 NODE_ENV=production
 STORAGE_PROVIDER=r2
 DB_SSL=true
-BACKEND_URL=https://taskboard-api.vercel.app
-FRONTEND_URL=https://taskboard-frontend.vercel.app
-CORS_ORIGINS=https://taskboard-frontend.vercel.app
+BACKEND_URL=https://taskboard-api-ten.vercel.app
+FRONTEND_URL=https://taskboard-frontend-ochre.vercel.app
+CORS_ORIGINS=https://taskboard-frontend-ochre.vercel.app
 ```
 
 ## **Testing & Quality Assurance**
