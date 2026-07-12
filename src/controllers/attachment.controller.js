@@ -37,7 +37,7 @@ const attachmentSelect = `
   SELECT
     a.id, a.issue_id, a.uploaded_by, a.file_name, a.mime_type, a.file_size,
     a.category, a.tags, a.version_group_id, a.version_number,
-    a.ai_summary, a.extracted_text, a.created_at, a.updated_at,
+    a.storage_provider, a.ai_summary, a.extracted_text, a.created_at, a.updated_at,
     u.email AS uploaded_by_email,
     u.first_name AS uploaded_by_first_name,
     u.last_name AS uploaded_by_last_name
