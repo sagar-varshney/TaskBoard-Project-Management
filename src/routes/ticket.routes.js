@@ -11,7 +11,8 @@ const {
   listIssues,
   listMyIssues,
   updateIssueComment,
-  updateIssue
+  updateIssue,
+  updateIssueStatus
 } = require("../controllers/issue.controller");
 const { authenticate } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
@@ -44,6 +45,7 @@ router.get("/:id/comments", listIssueComments);
 router.get("/:id/attachments", listIssueAttachments);
 router.post("/", createIssue);
 router.patch("/:id", updateIssue);
+router.patch("/:id/status", updateIssueStatus);
 router.post("/:id/comments", createIssueComment);
 router.patch("/:id/comments/:commentId", updateIssueComment);
 router.delete("/:id/comments/:commentId", deleteIssueComment);

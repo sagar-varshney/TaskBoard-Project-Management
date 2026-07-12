@@ -76,11 +76,11 @@ export default function AuthForm({ mode, isLoading, onSubmit }) {
         <input
           name="password"
           type="password"
-          placeholder="Minimum 8 characters"
+          placeholder={isRegister ? "Minimum 8 characters" : "Enter your password"}
           value={formValues.password}
           onChange={updateField}
           autoComplete="off"
-          minLength={8}
+          minLength={isRegister ? 8 : undefined}
           required
         />
       </label>
