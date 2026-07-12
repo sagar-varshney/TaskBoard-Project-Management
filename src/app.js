@@ -35,6 +35,25 @@ app.use(requestLogger);
 // File uploads use multipart/form-data, so JSON bodies can stay relatively small.
 app.use(express.json({ limit: "2mb" }));
 
+function getApiIndex() {
+  return {
+    status: "ok",
+    service: config.app.name,
+    message: "TaskBoard API is running",
+    documentation: "/api/docs",
+    health: "/api/health",
+    openapi: "/api/openapi.json"
+  };
+}
+
+app.get("/", (req, res) => {
+  res.json(getApiIndex());
+});
+
+app.get("/api", (req, res) => {
+  res.json(getApiIndex());
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
