@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const os = require("os");
+const path = require("path");
 const packageJson = require("../../package.json");
 
 function readNumber(name, fallback) {
@@ -63,6 +65,7 @@ function requireValue(name, options = {}) {
 
 const nodeEnv = process.env.NODE_ENV || "development";
 const isProduction = nodeEnv === "production";
+const isVercel = process.env.VERCEL === "1";
 const storageProvider = readEnum("STORAGE_PROVIDER", ["local", "r2"], "local");
 const corsOrigins = readList("CORS_ORIGINS", [
   process.env.FRONTEND_URL,
@@ -88,6 +91,7 @@ const config = {
     name: "TaskBoard API",
     version: packageJson.version,
     environment: nodeEnv,
+    isVercel,
     isProduction,
     port: readNumber("PORT", 5001),
     frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -127,7 +131,7 @@ const config = {
     }
   },
   logging: {
-    directory: process.env.LOG_DIR || "logs",
+    directory: process.env.LOG_DIR || (isVercel ? path.join(os.tmpdir(), "taskboard-logs") : "logs"),
     toConsole: process.env.LOG_TO_CONSOLE !== "false",
     includeRequestBody: process.env.LOG_REQUEST_BODY === "true"
   }

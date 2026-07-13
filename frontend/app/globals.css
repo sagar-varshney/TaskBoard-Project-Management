@@ -1234,11 +1234,24 @@ h1 {
 }
 
 .agent-message {
+  display: grid;
+  gap: 6px;
   line-height: 1.45;
   margin: 0;
   max-width: 88%;
   overflow-wrap: anywhere;
   padding: 9px 11px;
+}
+
+.agent-message ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.agent-message li {
+  padding-left: 2px;
 }
 
 .agent-message.assistant {

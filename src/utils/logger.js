@@ -59,7 +59,15 @@ async function appendLog(fileName, entry) {
     await fs.appendFile(path.join(logDirectory, fileName), `${JSON.stringify(entry)}\n`);
   } catch (error) {
     if (logToConsole) {
-      console.error("Failed to write log entry:", error.message);
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        logFile: "error.log",
+        event: "log_write_failed",
+        targetLogFile: fileName,
+        logDirectory,
+        message: error.message
+      }));
     }
   }
 }
@@ -68,6 +76,7 @@ function writeLog(level, event, details = {}, fileName = "app.log") {
   const entry = {
     timestamp: new Date().toISOString(),
     level,
+    logFile: fileName,
     event,
     ...sanitize(details)
   };

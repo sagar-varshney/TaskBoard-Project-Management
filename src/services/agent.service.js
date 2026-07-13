@@ -214,6 +214,23 @@ function localPlan(message) {
   return null;
 }
 
+function humanize(value) {
+  return String(value || "not set").replaceAll("_", " ");
+}
+
+function formatTicketLine(ticket) {
+  return `${ticket.ticket_key}: ${ticket.title} (${humanize(ticket.status)}, ${humanize(ticket.priority)} priority)`;
+}
+
+function formatAttachmentLine(attachment) {
+  const sizeKb = attachment.file_size ? `${Math.ceil(Number(attachment.file_size) / 1024)} KB` : "size unknown";
+  return `${attachment.id}: ${attachment.file_name} (${attachment.mime_type || "unknown type"}, ${sizeKb})`;
+}
+
+function bulletList(items) {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
 async function planNode(state) {
   const plan = localPlan(state.message) || await generateJson(plannerPrompt(state));
 
@@ -336,67 +353,64 @@ async function executeToolNode(state) {
 
 async function respondNode(state) {
   const tickets = state.result.tickets || [];
-  const ticketSummary = tickets
-    .slice(0, 5)
-    .map((ticket) => `${ticket.ticket_key} "${ticket.title}"`)
-    .join(", ");
+  const ticketSummary = bulletList(tickets.slice(0, 5).map(formatTicketLine));
 
   switch (state.plan.tool) {
     case "list_my_tickets":
       return {
         reply:
-          `You have ${state.result.relatedCount} tickets related to you out of ` +
+          `I found ${state.result.relatedCount} tickets related to you out of ` +
           `${state.result.workspaceTotal} total workspace tickets.` +
-          (ticketSummary ? ` Your related tickets include ${ticketSummary}.` : "")
+          (ticketSummary ? `\n\nTop matches:\n${ticketSummary}` : "\n\nNo related tickets are assigned, owned, or reported by you yet.")
       };
     case "list_tickets":
       return {
         reply:
-          `There are ${tickets.length} matching workspace tickets.` +
-          (ticketSummary ? ` They include ${ticketSummary}.` : "")
+          `I found ${tickets.length} matching workspace tickets.` +
+          (ticketSummary ? `\n\nTop matches:\n${ticketSummary}` : "\n\nNo tickets match those filters yet.")
       };
     case "list_projects": {
       const projects = state.result.projects || [];
-      const summary = projects
+      const summary = bulletList(projects
         .slice(0, 5)
-        .map((project) => `${project.project_key} "${project.name}"`)
-        .join(", ");
+        .map((project) => `${project.project_key}: ${project.name}`));
       return {
-        reply: `There are ${projects.length} projects.${summary ? ` They include ${summary}.` : ""}`
+        reply: `I found ${projects.length} projects.${summary ? `\n\nProjects:\n${summary}` : "\n\nNo projects have been created yet."}`
       };
     }
     case "get_ticket": {
       const ticket = state.result.ticket;
       return {
         reply:
-          `${ticket.ticket_key} "${ticket.title}" is ${ticket.status.replaceAll("_", " ")} ` +
-          `with ${ticket.priority} priority and ${ticket.resolution} resolution. ` +
-          `${ticket.description || "No description is recorded."}`
+          `${ticket.ticket_key}: ${ticket.title}\n\n` +
+          bulletList([
+            `Status: ${humanize(ticket.status)}`,
+            `Priority: ${humanize(ticket.priority)}`,
+            `Resolution: ${humanize(ticket.resolution)}`,
+            `Description: ${ticket.description || "No description is recorded."}`
+          ])
       };
     }
     case "create_ticket":
       return {
         reply: state.result.ticket
-          ? `Created ${state.result.ticket.ticket_key} "${state.result.ticket.title}".`
+          ? `Created ticket successfully.\n\n- ${formatTicketLine(state.result.ticket)}`
           : state.result.message
       };
     case "update_ticket":
       return {
-        reply: `Updated ${state.result.ticket.ticket_key} "${state.result.ticket.title}".`
+        reply: `Updated ticket successfully.\n\n- ${formatTicketLine(state.result.ticket)}`
       };
     case "add_comment":
       return {
-        reply: `Added the comment to ticket ${state.result.comment.issue_id}.`
+        reply: `Added the comment successfully.\n\n- Ticket ID: ${state.result.comment.issue_id}`
       };
     case "list_attachments": {
       const attachments = state.result.attachments || [];
-      const summary = attachments
-        .slice(0, 5)
-        .map((attachment) => `${attachment.id}: ${attachment.file_name}`)
-        .join(", ");
+      const summary = bulletList(attachments.slice(0, 5).map(formatAttachmentLine));
       return {
         reply: attachments.length
-          ? `This ticket has ${attachments.length} attachment(s): ${summary}.`
+          ? `This ticket has ${attachments.length} attachment(s).\n\nAttachments:\n${summary}`
           : "This ticket does not have any attachments yet."
       };
     }
@@ -407,9 +421,12 @@ async function respondNode(state) {
       const insight = state.result.insight;
       return {
         reply:
-          `Attachment analysis: ${insight.summary || "No summary returned."} ` +
-          `Suggested action: ${insight.suggestedAction || "No action suggested."} ` +
-          `Risk level: ${insight.riskLevel || "not specified"}.`
+          "Attachment analysis complete.\n\n" +
+          bulletList([
+            `Summary: ${insight.summary || "No summary returned."}`,
+            `Suggested action: ${insight.suggestedAction || "No action suggested."}`,
+            `Risk level: ${insight.riskLevel || "not specified"}`
+          ])
       };
     }
     case "answer":
