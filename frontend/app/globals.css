@@ -66,10 +66,10 @@
   --purple-soft: rgba(185, 167, 255, 0.16);
   --success-text: #b7f7d4;
   --warning-text: #ffe0a3;
-  --sidebar: #05070b;
-  --sidebar-admin: #07111f;
-  --sidebar-developer: #071b17;
-  --sidebar-member: #0b1018;
+  --sidebar: #101722;
+  --sidebar-admin: #11233a;
+  --sidebar-developer: #102d28;
+  --sidebar-member: #141c29;
   --board-column: #111720;
   --focus-ring: rgba(110, 168, 255, 0.2);
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.46);
@@ -585,6 +585,7 @@ h1 {
 .dashboard-controls {
   background: var(--surface);
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   gap: 16px;
   padding: 16px;
 }
@@ -604,6 +605,7 @@ h1 {
 .role-note.standalone {
   background: var(--surface-muted);
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   justify-items: start;
   margin: 0;
   padding: 12px;
@@ -682,6 +684,7 @@ h1 {
 .management-list {
   background: var(--surface);
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   box-shadow: var(--panel-shadow);
 }
 
@@ -716,6 +719,7 @@ h1 {
 .ticket-column {
   background: var(--board-column);
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   min-height: 360px;
   padding: 12px;
 }
