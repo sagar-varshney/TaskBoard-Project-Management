@@ -32,6 +32,21 @@ async function listBlockedUsers(req, res, next) {
   }
 }
 
+async function listAssignableUsers(req, res, next) {
+  try {
+    const [users] = await pool.execute(
+      `SELECT id, first_name, last_name, role
+       FROM users
+       WHERE deleted_at IS NULL
+       ORDER BY first_name ASC, last_name ASC`
+    );
+
+    res.json({ users });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function blockUser(req, res, next) {
   try {
     const userId = Number(req.params.id);
@@ -102,6 +117,7 @@ async function unblockUser(req, res, next) {
 
 module.exports = {
   blockUser,
+  listAssignableUsers,
   listBlockedUsers,
   listUsers,
   unblockUser

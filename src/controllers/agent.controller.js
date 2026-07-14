@@ -10,9 +10,14 @@ async function chat(req, res, next) {
       throw new AppError("message is required", 400);
     }
 
+    if (message.trim().length > 1000) {
+      throw new AppError("message must be 1000 characters or fewer", 400);
+    }
+
     const safeHistory = Array.isArray(history)
       ? history
           .filter((item) => item && ["user", "assistant"].includes(item.role) && typeof item.content === "string")
+          .map((item) => ({ ...item, content: item.content.slice(0, 1000) }))
           .slice(-8)
       : [];
     const state = await runAgent({

@@ -58,6 +58,12 @@ function validateOption(value, allowedValues, fieldName) {
   }
 }
 
+function validateTextLength(value, maxLength, fieldName) {
+  if (value !== undefined && value !== null && String(value).length > maxLength) {
+    throw new AppError(`${fieldName} must be ${maxLength} characters or fewer`, 400);
+  }
+}
+
 async function findTicket(id) {
   // Single source for fetching a ticket with all joined display fields.
   const [rows] = await pool.execute(
@@ -193,6 +199,11 @@ async function createIssue(req, res, next) {
       throw new AppError("projectId and title are required", 400);
     }
 
+    validateTextLength(title, 160, "title");
+    validateTextLength(description, 5000, "description");
+    validateTextLength(impact, 2000, "impact");
+    validateTextLength(fixPlan, 2000, "fixPlan");
+
     if (
       req.user.role !== "admin" &&
       (assigneeId || ownerId || sprintId || scrumTeamId)
@@ -314,11 +325,13 @@ async function updateIssue(req, res, next) {
         throw new AppError("title cannot be empty", 400);
       }
 
+      validateTextLength(title, 160, "title");
       fields.push("title = ?");
       values.push(title.trim());
     }
 
     if (description !== undefined) {
+      validateTextLength(description, 5000, "description");
       fields.push("description = ?");
       values.push(description || null);
     }
@@ -374,11 +387,13 @@ async function updateIssue(req, res, next) {
     }
 
     if (impact !== undefined) {
+      validateTextLength(impact, 2000, "impact");
       fields.push("impact = ?");
       values.push(impact || null);
     }
 
     if (fixPlan !== undefined) {
+      validateTextLength(fixPlan, 2000, "fixPlan");
       fields.push("fix_plan = ?");
       values.push(fixPlan || null);
     }
@@ -509,6 +524,8 @@ async function createIssueComment(req, res, next) {
       throw new AppError("commentText is required", 400);
     }
 
+    validateTextLength(commentText, 4000, "commentText");
+
     const ticket = await findTicket(req.params.id);
 
     if (!ticket) {
@@ -556,6 +573,8 @@ async function updateIssueComment(req, res, next) {
     if (!commentText || !commentText.trim()) {
       throw new AppError("commentText is required", 400);
     }
+
+    validateTextLength(commentText, 4000, "commentText");
 
     const [existingComments] = await pool.execute(
       `SELECT id, user_id

@@ -6,6 +6,7 @@ const { config } = require("./config/env");
 const { getApiDocsHtml, getOpenApiDocument } = require("./docs/openapi");
 const { authenticate } = require("./middleware/auth.middleware");
 const issueRoutes = require("./routes/issue.routes");
+const { securityHeaders } = require("./middleware/security-headers.middleware");
 const { requestLogger } = require("./middleware/request-logger.middleware");
 const { requireRole } = require("./middleware/role.middleware");
 const projectRoutes = require("./routes/project.routes");
@@ -17,7 +18,26 @@ const AppError = require("./utils/app-error");
 const logger = require("./utils/logger");
 
 const app = express();
+app.set("trust proxy", 1);
 
+app.use(securityHeaders);
+// Adds a request ID and structured request/response logging for API observability.
+app.use(requestLogger);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && !config.cors.origins.includes(origin)) {
+    logger.warn("cors_origin_blocked", {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      origin,
+      ip: req.ip
+    });
+  }
+
+  next();
+});
 // Allows only configured frontend origins to call the API across domains.
 app.use(
   cors({
@@ -31,12 +51,10 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type"],
+    allowedHeaders: ["Authorization", "Content-Type", "X-CSRF-Token"],
     optionsSuccessStatus: 204
   })
 );
-// Adds a request ID and structured request/response logging for API observability.
-app.use(requestLogger);
 // Parses JSON request bodies so controllers can read req.body.
 // File uploads use multipart/form-data, so JSON bodies can stay relatively small.
 app.use(express.json({ limit: "2mb" }));
@@ -45,10 +63,7 @@ function getApiIndex() {
   return {
     status: "ok",
     service: config.app.name,
-    message: "TaskBoard API is running",
-    documentation: "/api/docs",
-    health: "/api/health",
-    openapi: "/api/openapi.json"
+    message: "TaskBoard API is running"
   };
 }
 

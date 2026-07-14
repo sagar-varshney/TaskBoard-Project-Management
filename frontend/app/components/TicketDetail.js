@@ -225,7 +225,7 @@ export default function TicketDetail({ ticketId }) {
         apiRequest(`/tickets/${ticketId}/comments`),
         apiRequest(`/tickets/${ticketId}/attachments`),
         apiRequest(`/tickets/${ticketId}/activity`),
-        apiRequest("/users"),
+        apiRequest("/users/assignable"),
         apiRequest("/sprints"),
         apiRequest("/teams")
       ]);

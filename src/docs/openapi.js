@@ -27,7 +27,11 @@ const endpointGroups = [
       ["post", "/api/sprints", "Create a sprint", true],
       ["get", "/api/teams", "List scrum teams", true],
       ["post", "/api/teams", "Create a scrum team", true],
-      ["get", "/api/users", "List active users", true]
+      ["get", "/api/users", "List active users for admins", true],
+      ["get", "/api/users/assignable", "List assignable users for workspace dropdowns", true],
+      ["get", "/api/users/blocked", "List blocked users for admins", true],
+      ["patch", "/api/users/{id}/block", "Block a user and revoke active tokens", true],
+      ["patch", "/api/users/{id}/unblock", "Unblock a user", true]
     ]
   },
   {

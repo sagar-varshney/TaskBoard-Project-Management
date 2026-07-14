@@ -111,7 +111,7 @@ export default function Dashboard({ token, user, onLogout }) {
       const [projectData, ticketData, userData, sprintData, teamData] = await Promise.all([
         apiRequest("/projects"),
         apiRequest(`/tickets${ticketQuery}`),
-        apiRequest("/users"),
+        apiRequest("/users/assignable"),
         apiRequest("/sprints"),
         apiRequest("/teams")
       ]);

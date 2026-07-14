@@ -115,7 +115,12 @@ const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "1d"
   },
   auth: {
-    allowPublicRegistration: readBoolean("ALLOW_PUBLIC_REGISTRATION", !isProduction)
+    allowPublicRegistration: readBoolean("ALLOW_PUBLIC_REGISTRATION", !isProduction),
+    cookieName: process.env.AUTH_COOKIE_NAME || "taskboardToken",
+    csrfCookieName: process.env.CSRF_COOKIE_NAME || "taskboardCsrf",
+    failedLoginLimit: readNumber("FAILED_LOGIN_LIMIT", 5),
+    failedLoginWindowMinutes: readNumber("FAILED_LOGIN_WINDOW_MINUTES", 15),
+    lockoutMinutes: readNumber("LOGIN_LOCKOUT_MINUTES", 15)
   },
   ai: {
     geminiApiKey: process.env.GEMINI_API_KEY || "",

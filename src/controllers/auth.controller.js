@@ -1,9 +1,138 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const { pool } = require("../config/db");
 const { config } = require("../config/env");
 const AppError = require("../utils/app-error");
 const { signToken } = require("../utils/jwt");
 const logger = require("../utils/logger");
+
+async function ensureLoginAttemptTable() {
+  await pool.execute(
+    `CREATE TABLE IF NOT EXISTS auth_login_attempts (
+       email VARCHAR(255) PRIMARY KEY,
+       failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+       first_failed_at TIMESTAMP NULL DEFAULT NULL,
+       locked_until TIMESTAMP NULL DEFAULT NULL,
+       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+     )`
+  );
+}
+
+function tokenCookieOptions(maxAgeSeconds) {
+  const options = [
+    "HttpOnly",
+    "Path=/",
+    "SameSite=None",
+    `Max-Age=${maxAgeSeconds}`
+  ];
+
+  if (config.app.isProduction) {
+    options.push("Secure");
+  }
+
+  return options.join("; ");
+}
+
+function readableCookieOptions(maxAgeSeconds) {
+  const options = [
+    "Path=/",
+    "SameSite=None",
+    `Max-Age=${maxAgeSeconds}`
+  ];
+
+  if (config.app.isProduction) {
+    options.push("Secure");
+  }
+
+  return options.join("; ");
+}
+
+function appendCookie(res, cookie) {
+  const current = res.getHeader("Set-Cookie");
+
+  if (!current) {
+    res.setHeader("Set-Cookie", cookie);
+    return;
+  }
+
+  res.setHeader("Set-Cookie", Array.isArray(current) ? [...current, cookie] : [current, cookie]);
+}
+
+function setAuthCookie(res, token) {
+  const csrfToken = crypto.randomBytes(32).toString("hex");
+  appendCookie(res, `${config.auth.cookieName}=${encodeURIComponent(token)}; ${tokenCookieOptions(24 * 60 * 60)}`);
+  appendCookie(res, `${config.auth.csrfCookieName}=${csrfToken}; ${readableCookieOptions(24 * 60 * 60)}`);
+}
+
+function clearAuthCookie(res) {
+  appendCookie(res, `${config.auth.cookieName}=; ${tokenCookieOptions(0)}`);
+  appendCookie(res, `${config.auth.csrfCookieName}=; ${readableCookieOptions(0)}`);
+}
+
+async function getLoginAttempt(email) {
+  await ensureLoginAttemptTable();
+  const [rows] = await pool.execute(
+    `SELECT email, failed_count, first_failed_at, locked_until
+     FROM auth_login_attempts
+     WHERE email = ?`,
+    [email]
+  );
+
+  return rows[0];
+}
+
+async function resetLoginAttempts(email) {
+  await ensureLoginAttemptTable();
+  await pool.execute(
+    "DELETE FROM auth_login_attempts WHERE email = ?",
+    [email]
+  );
+}
+
+async function recordFailedLogin(email, req) {
+  await ensureLoginAttemptTable();
+  const attempt = await getLoginAttempt(email);
+  const now = Date.now();
+  const windowMs = config.auth.failedLoginWindowMinutes * 60 * 1000;
+  const firstFailedAt = attempt?.first_failed_at ? new Date(attempt.first_failed_at).getTime() : now;
+  const withinWindow = now - firstFailedAt <= windowMs;
+  const failedCount = withinWindow ? Number(attempt?.failed_count || 0) + 1 : 1;
+  const lockedUntil =
+    failedCount >= config.auth.failedLoginLimit
+      ? new Date(now + config.auth.lockoutMinutes * 60 * 1000)
+      : null;
+
+  await pool.execute(
+    `INSERT INTO auth_login_attempts (email, failed_count, first_failed_at, locked_until)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       failed_count = VALUES(failed_count),
+       first_failed_at = VALUES(first_failed_at),
+       locked_until = VALUES(locked_until)`,
+    [
+      email,
+      failedCount,
+      new Date(withinWindow ? firstFailedAt : now),
+      lockedUntil
+    ]
+  );
+
+  logger.warn("login_failed", {
+    requestId: req.requestId,
+    email,
+    failedCount,
+    locked: Boolean(lockedUntil),
+    ip: req.ip
+  });
+}
+
+async function assertLoginNotLocked(email) {
+  const attempt = await getLoginAttempt(email);
+
+  if (attempt?.locked_until && new Date(attempt.locked_until).getTime() > Date.now()) {
+    throw new AppError("Too many failed login attempts. Please try again later.", 423);
+  }
+}
 
 function validateRegisterInput(body) {
   const { email, password, firstName, lastName } = body;
@@ -68,6 +197,7 @@ async function register(req, res, next) {
     };
     const token = signToken(user);
     const { token_version: ignoredTokenVersion, ...safeUser } = user;
+    setAuthCookie(res, token);
 
     res.status(201).json({
       message: "Registered successfully",
@@ -91,6 +221,8 @@ async function login(req, res, next) {
     const { email, password } = req.body;
     const normalizedEmail = email.toLowerCase().trim();
 
+    await assertLoginNotLocked(normalizedEmail);
+
     const [rows] = await pool.execute(
       `SELECT id, email, password_hash, first_name, last_name, role, token_version
        FROM users
@@ -99,6 +231,7 @@ async function login(req, res, next) {
     );
 
     if (rows.length === 0) {
+      await recordFailedLogin(normalizedEmail, req);
       throw new AppError("Invalid email or password", 401);
     }
 
@@ -106,13 +239,16 @@ async function login(req, res, next) {
     const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatches) {
+      await recordFailedLogin(normalizedEmail, req);
       throw new AppError("Invalid email or password", 401);
     }
 
+    await resetLoginAttempts(normalizedEmail);
     // Never send password_hash back to the frontend.
     delete user.password_hash;
     const token = signToken(user);
     delete user.token_version;
+    setAuthCookie(res, token);
 
     res.json({
       message: "Logged in successfully",
@@ -136,6 +272,7 @@ async function logout(req, res, next) {
       [req.user.id]
     );
 
+    clearAuthCookie(res);
     res.json({
       message: "Logged out successfully"
     });
