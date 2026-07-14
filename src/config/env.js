@@ -114,6 +114,9 @@ const config = {
     secret: process.env.JWT_SECRET || "development_only_change_me",
     expiresIn: process.env.JWT_EXPIRES_IN || "1d"
   },
+  auth: {
+    allowPublicRegistration: readBoolean("ALLOW_PUBLIC_REGISTRATION", !isProduction)
+  },
   ai: {
     geminiApiKey: process.env.GEMINI_API_KEY || "",
     geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",

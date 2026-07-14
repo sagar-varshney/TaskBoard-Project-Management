@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const { pool } = require("../config/db");
+const { config } = require("../config/env");
 const AppError = require("../utils/app-error");
 const { signToken } = require("../utils/jwt");
 const logger = require("../utils/logger");
@@ -31,6 +32,10 @@ function validateLoginInput(body) {
 
 async function register(req, res, next) {
   try {
+    if (!config.auth.allowPublicRegistration) {
+      throw new AppError("Public registration is disabled. Please contact an administrator for access.", 403);
+    }
+
     validateRegisterInput(req.body);
 
     const { email, password, firstName, lastName } = req.body;

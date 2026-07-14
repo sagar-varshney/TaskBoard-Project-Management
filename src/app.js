@@ -4,13 +4,16 @@ const agentRoutes = require("./routes/agent.routes");
 const authRoutes = require("./routes/auth.routes");
 const { config } = require("./config/env");
 const { getApiDocsHtml, getOpenApiDocument } = require("./docs/openapi");
+const { authenticate } = require("./middleware/auth.middleware");
 const issueRoutes = require("./routes/issue.routes");
 const { requestLogger } = require("./middleware/request-logger.middleware");
+const { requireRole } = require("./middleware/role.middleware");
 const projectRoutes = require("./routes/project.routes");
 const sprintRoutes = require("./routes/sprint.routes");
 const teamRoutes = require("./routes/team.routes");
 const ticketRoutes = require("./routes/ticket.routes");
 const userRoutes = require("./routes/user.routes");
+const AppError = require("./utils/app-error");
 const logger = require("./utils/logger");
 
 const app = express();
@@ -24,9 +27,12 @@ app.use(
         return;
       }
 
-      callback(new Error("Origin is not allowed by CORS"));
+      callback(new AppError("Origin is not allowed by CORS", 403));
     },
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    optionsSuccessStatus: 204
   })
 );
 // Adds a request ID and structured request/response logging for API observability.
@@ -66,11 +72,11 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.get("/api/openapi.json", (req, res) => {
+app.get("/api/openapi.json", authenticate, requireRole("admin"), (req, res) => {
   res.json(getOpenApiDocument());
 });
 
-app.get("/api/docs", (req, res) => {
+app.get("/api/docs", authenticate, requireRole("admin"), (req, res) => {
   res.type("html").send(getApiDocsHtml());
 });
 
