@@ -14,6 +14,15 @@ Logs are written to the `logs/` directory, which is ignored by Git.
 
 Every log entry is a single JSON object on one line. This makes logs easy to search locally and easy to ship to production log systems later.
 
+Production logs also include demo-friendly fields for Vercel:
+
+| Field | Purpose |
+|-------|---------|
+| `category` | Groups logs as `app`, `audit`, `security`, or `error` |
+| `severity` | Searchable severity: `info`, `warning`, or `error` |
+| `summary` | Human-readable one-line explanation of the event |
+| `logFile` | Keeps the local-style grouping: `app.log`, `audit.log`, or `error.log` |
+
 ## Request IDs
 
 Every API response includes:
@@ -52,6 +61,47 @@ Examples of events currently logged:
 - `attachment_analyzed`
 - `attachment_deleted`
 - `agent_chat_queried`
+- `login_failed`
+- `rate_limit_exceeded`
+- `unauthorized_api_attempt`
+- `csrf_validation_failed`
+- `cors_origin_blocked`
+- `user_blocked`
+- `user_unblocked`
+
+## Vercel Log Searches
+
+In the Vercel backend project, open **Logs** and search these terms:
+
+```text
+category":"security
+```
+
+Shows blocked origins, failed logins, unauthorized API attempts, CSRF failures, and rate-limit events.
+
+```text
+category":"audit
+```
+
+Shows user and business actions such as login, logout, ticket changes, uploads, and AI assistant queries.
+
+```text
+agent_chat_queried
+```
+
+Shows AI assistant usage.
+
+```text
+summary
+```
+
+Shows logs with human-readable explanations.
+
+```text
+error.log
+```
+
+Shows backend errors. An empty result is a healthy sign during normal demos.
 
 ## Useful Environment Variables
 
