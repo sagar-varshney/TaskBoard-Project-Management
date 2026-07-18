@@ -1,8 +1,10 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata = {
-  title: "TaskBoard Auth",
-  description: "Login and register screens for TaskBoard"
+  title: "TaskBoard",
+  description: "Project planning, ticket tracking, sprint management, and AI-assisted task insights."
 };
 
 export default function RootLayout({ children }) {
@@ -26,6 +28,8 @@ export default function RootLayout({ children }) {
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
