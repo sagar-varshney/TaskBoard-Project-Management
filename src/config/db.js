@@ -18,7 +18,8 @@ const pool = mysql.createPool({
   ssl: sslOptions,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  connectTimeout: config.db.connectTimeoutMs
 });
 
 async function testDatabaseConnection() {

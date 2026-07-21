@@ -1,9 +1,18 @@
 CREATE DATABASE IF NOT EXISTS jira_clone;
 USE jira_clone;
 
+CREATE TABLE IF NOT EXISTS companies (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(80) NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- Stores login accounts. deleted_at enables soft delete: the row stays, but the user is treated as inactive.
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   token_version INT UNSIGNED NOT NULL DEFAULT 0,
@@ -13,18 +22,22 @@ CREATE TABLE IF NOT EXISTS users (
   deleted_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_users_company_id (company_id),
   INDEX idx_users_deleted_at (deleted_at)
 );
 
 -- Project workspaces. project_key is used to build readable ticket keys like PAY-15.
 CREATE TABLE IF NOT EXISTS projects (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-  project_key VARCHAR(20) NOT NULL UNIQUE,
+  company_id BIGINT UNSIGNED NULL,
+  project_key VARCHAR(20) NOT NULL,
   name VARCHAR(150) NOT NULL,
   description TEXT NULL,
   owner_id BIGINT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_projects_company_id (company_id),
+  UNIQUE KEY uq_projects_company_key (company_id, project_key),
   INDEX idx_projects_owner_id (owner_id),
   CONSTRAINT fk_projects_owner
     FOREIGN KEY (owner_id) REFERENCES users(id)
@@ -34,6 +47,7 @@ CREATE TABLE IF NOT EXISTS projects (
 -- Sprint planning table. Each sprint belongs to a project.
 CREATE TABLE IF NOT EXISTS sprints (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   project_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(120) NOT NULL,
   goal TEXT NULL,
@@ -43,6 +57,7 @@ CREATE TABLE IF NOT EXISTS sprints (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_sprints_project_name (project_id, name),
+  INDEX idx_sprints_company_id (company_id),
   INDEX idx_sprints_project_id (project_id),
   CONSTRAINT fk_sprints_project
     FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -52,12 +67,14 @@ CREATE TABLE IF NOT EXISTS sprints (
 -- Scrum teams belong to projects and can contain multiple users through scrum_team_members.
 CREATE TABLE IF NOT EXISTS scrum_teams (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   project_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(120) NOT NULL,
   description TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_scrum_teams_project_name (project_id, name),
+  INDEX idx_scrum_teams_company_id (company_id),
   INDEX idx_scrum_teams_project_id (project_id),
   CONSTRAINT fk_scrum_teams_project
     FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -81,6 +98,7 @@ CREATE TABLE IF NOT EXISTS scrum_team_members (
 -- Main ticket table. Named issues internally because JIRA commonly calls tickets "issues".
 CREATE TABLE IF NOT EXISTS issues (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   project_id BIGINT UNSIGNED NOT NULL,
   reporter_id BIGINT UNSIGNED NOT NULL,
   assignee_id BIGINT UNSIGNED NULL,
@@ -100,6 +118,7 @@ CREATE TABLE IF NOT EXISTS issues (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_issues_project_id (project_id),
+  INDEX idx_issues_company_id (company_id),
   INDEX idx_issues_reporter_id (reporter_id),
   INDEX idx_issues_assignee_id (assignee_id),
   INDEX idx_issues_owner_id (owner_id),
@@ -131,6 +150,7 @@ CREATE TABLE IF NOT EXISTS issues (
 -- Ticket comments. deleted_at is comment-level soft delete.
 CREATE TABLE IF NOT EXISTS issue_comments (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   issue_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
   comment_text TEXT NOT NULL,
@@ -139,6 +159,7 @@ CREATE TABLE IF NOT EXISTS issue_comments (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_issue_comments_issue_id (issue_id),
+  INDEX idx_issue_comments_company_id (company_id),
   INDEX idx_issue_comments_user_id (user_id),
   INDEX idx_issue_comments_deleted_at (deleted_at),
   CONSTRAINT fk_issue_comments_issue
@@ -152,6 +173,7 @@ CREATE TABLE IF NOT EXISTS issue_comments (
 -- Files attached to tickets. storage_path points to the local uploads folder; deleted_at enables soft delete.
 CREATE TABLE IF NOT EXISTS issue_attachments (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   issue_id BIGINT UNSIGNED NOT NULL,
   uploaded_by BIGINT UNSIGNED NOT NULL,
   file_name VARCHAR(255) NOT NULL,
@@ -170,6 +192,7 @@ CREATE TABLE IF NOT EXISTS issue_attachments (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_issue_attachments_issue_id (issue_id),
+  INDEX idx_issue_attachments_company_id (company_id),
   INDEX idx_issue_attachments_uploaded_by (uploaded_by),
   INDEX idx_issue_attachments_deleted_at (deleted_at),
   INDEX idx_issue_attachments_category (category),
@@ -189,6 +212,7 @@ CREATE TABLE IF NOT EXISTS issue_attachments (
 -- Comments tied to a specific attachment, separate from general ticket comments.
 CREATE TABLE IF NOT EXISTS issue_attachment_comments (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   issue_id BIGINT UNSIGNED NOT NULL,
   attachment_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -197,6 +221,7 @@ CREATE TABLE IF NOT EXISTS issue_attachment_comments (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_issue_attachment_comments_issue_id (issue_id),
+  INDEX idx_issue_attachment_comments_company_id (company_id),
   INDEX idx_issue_attachment_comments_attachment_id (attachment_id),
   INDEX idx_issue_attachment_comments_user_id (user_id),
   INDEX idx_issue_attachment_comments_deleted_at (deleted_at),
@@ -214,6 +239,7 @@ CREATE TABLE IF NOT EXISTS issue_attachment_comments (
 -- Stores every AI analysis run instead of only keeping the latest summary on the attachment row.
 CREATE TABLE IF NOT EXISTS issue_attachment_analyses (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   issue_id BIGINT UNSIGNED NOT NULL,
   attachment_id BIGINT UNSIGNED NOT NULL,
   analyzed_by BIGINT UNSIGNED NOT NULL,
@@ -224,6 +250,7 @@ CREATE TABLE IF NOT EXISTS issue_attachment_analyses (
   risk_level VARCHAR(40) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_issue_attachment_analyses_issue_id (issue_id),
+  INDEX idx_issue_attachment_analyses_company_id (company_id),
   INDEX idx_issue_attachment_analyses_attachment_id (attachment_id),
   INDEX idx_issue_attachment_analyses_analyzed_by (analyzed_by),
   CONSTRAINT fk_issue_attachment_analyses_issue
@@ -240,6 +267,7 @@ CREATE TABLE IF NOT EXISTS issue_attachment_analyses (
 -- Ticket audit table. Stores who changed what, from which value, to which value, and when.
 CREATE TABLE IF NOT EXISTS issue_activity (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  company_id BIGINT UNSIGNED NULL,
   issue_id BIGINT UNSIGNED NOT NULL,
   actor_id BIGINT UNSIGNED NOT NULL,
   action VARCHAR(80) NOT NULL,
@@ -248,6 +276,7 @@ CREATE TABLE IF NOT EXISTS issue_activity (
   new_value TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_issue_activity_issue_id (issue_id),
+  INDEX idx_issue_activity_company_id (company_id),
   INDEX idx_issue_activity_actor_id (actor_id),
   CONSTRAINT fk_issue_activity_issue
     FOREIGN KEY (issue_id) REFERENCES issues(id)

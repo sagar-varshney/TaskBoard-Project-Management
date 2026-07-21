@@ -108,7 +108,8 @@ const config = {
     name: process.env.DB_NAME || "jira_clone",
     ssl: readBoolean("DB_SSL", false),
     sslRejectUnauthorized: readBoolean("DB_SSL_REJECT_UNAUTHORIZED", true),
-    sslCa: process.env.DB_SSL_CA || ""
+    sslCa: process.env.DB_SSL_CA || "",
+    connectTimeoutMs: readNumber("DB_CONNECT_TIMEOUT_MS", 10000)
   },
   jwt: {
     secret: process.env.JWT_SECRET || "development_only_change_me",
