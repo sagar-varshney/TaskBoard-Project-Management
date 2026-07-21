@@ -2,6 +2,7 @@ const cors = require("cors");
 const express = require("express");
 const agentRoutes = require("./routes/agent.routes");
 const authRoutes = require("./routes/auth.routes");
+const companyRoutes = require("./routes/company.routes");
 const { config } = require("./config/env");
 const { getApiDocsHtml, getOpenApiDocument } = require("./docs/openapi");
 const { authenticate } = require("./middleware/auth.middleware");
@@ -98,6 +99,7 @@ app.get("/api/docs", authenticate, requireRole("admin"), (req, res) => {
 // Route groups keep each feature area separate: auth, projects, tickets, teams, etc.
 app.use("/api/agent", agentRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/companies", companyRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/sprints", sprintRoutes);
 app.use("/api/teams", teamRoutes);

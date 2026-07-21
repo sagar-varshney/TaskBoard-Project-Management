@@ -35,7 +35,7 @@ const allowedExtensionsByMimeType = {
 
 const attachmentSelect = `
   SELECT
-    a.id, a.issue_id, a.uploaded_by, a.file_name, a.mime_type, a.file_size,
+    a.id, a.company_id, a.issue_id, a.uploaded_by, a.file_name, a.mime_type, a.file_size,
     a.category, a.tags, a.version_group_id, a.version_number,
     a.storage_provider, a.ai_summary, a.extracted_text, a.created_at, a.updated_at,
     u.email AS uploaded_by_email,
@@ -47,11 +47,19 @@ const attachmentSelect = `
 
 const ticketContextSelect = `
   SELECT
-    i.id, i.title, i.description, i.impact, i.fix_plan,
+    i.id, i.company_id, i.title, i.description, i.impact, i.fix_plan,
     CONCAT(p.project_key, '-', i.id) AS ticket_key
   FROM issues i
   JOIN projects p ON p.id = i.project_id
 `;
+
+function requireCompany(req) {
+  if (!req.user?.company_id) {
+    throw new AppError("Your account is not assigned to a company workspace", 403);
+  }
+
+  return req.user.company_id;
+}
 
 function cleanFileName(fileName) {
   return path.basename(fileName || "").replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -143,27 +151,27 @@ function validateAttachmentMetadata({ safeFileName, mimeType, fileSize }) {
   }
 }
 
-async function findTicket(id) {
-  const [rows] = await pool.execute(`${ticketContextSelect} WHERE i.id = ?`, [id]);
+async function findTicket(id, companyId) {
+  const [rows] = await pool.execute(`${ticketContextSelect} WHERE i.id = ? AND i.company_id = ?`, [id, companyId]);
   return rows[0];
 }
 
-async function findAttachment(issueId, attachmentId) {
+async function findAttachment(issueId, attachmentId, companyId) {
   const [rows] = await pool.execute(
     `${attachmentSelect}
-     WHERE a.issue_id = ? AND a.id = ? AND a.deleted_at IS NULL`,
-    [issueId, attachmentId]
+     WHERE a.issue_id = ? AND a.id = ? AND a.company_id = ? AND a.deleted_at IS NULL`,
+    [issueId, attachmentId, companyId]
   );
 
   return rows[0];
 }
 
-async function findAttachmentStorage(issueId, attachmentId) {
+async function findAttachmentStorage(issueId, attachmentId, companyId) {
   const [rows] = await pool.execute(
     `SELECT storage_provider, object_key, storage_path
      FROM issue_attachments
-     WHERE issue_id = ? AND id = ? AND deleted_at IS NULL`,
-    [issueId, attachmentId]
+     WHERE issue_id = ? AND id = ? AND company_id = ? AND deleted_at IS NULL`,
+    [issueId, attachmentId, companyId]
   );
 
   return rows[0];
@@ -171,7 +179,8 @@ async function findAttachmentStorage(issueId, attachmentId) {
 
 async function listIssueAttachments(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -179,9 +188,9 @@ async function listIssueAttachments(req, res, next) {
 
     const [attachments] = await pool.execute(
       `${attachmentSelect}
-       WHERE a.issue_id = ? AND a.deleted_at IS NULL
+       WHERE a.issue_id = ? AND a.company_id = ? AND a.deleted_at IS NULL
        ORDER BY a.created_at DESC`,
-      [req.params.id]
+      [req.params.id, companyId]
     );
 
     res.json({ attachments });
@@ -192,13 +201,14 @@ async function listIssueAttachments(req, res, next) {
 
 async function createIssueAttachment(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const uploadedFile = req.file;
     const {
       category,
       tags,
       replacesAttachmentId
     } = req.body;
-    const ticket = await findTicket(req.params.id);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -223,7 +233,7 @@ async function createIssueAttachment(req, res, next) {
     let versionNumber = 1;
 
     if (replacesAttachmentId) {
-      const previousAttachment = await findAttachment(req.params.id, replacesAttachmentId);
+      const previousAttachment = await findAttachment(req.params.id, replacesAttachmentId, companyId);
 
       if (!previousAttachment) {
         throw new AppError("Previous attachment version not found", 404);
@@ -233,8 +243,8 @@ async function createIssueAttachment(req, res, next) {
       const [versionRows] = await pool.execute(
         `SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version_number
          FROM issue_attachments
-         WHERE issue_id = ? AND version_group_id = ?`,
-        [req.params.id, versionGroupId]
+         WHERE issue_id = ? AND company_id = ? AND version_group_id = ?`,
+        [req.params.id, companyId, versionGroupId]
       );
       versionNumber = versionRows[0].next_version_number;
     }
@@ -248,9 +258,10 @@ async function createIssueAttachment(req, res, next) {
 
     const [result] = await pool.execute(
       `INSERT INTO issue_attachments
-         (issue_id, uploaded_by, file_name, mime_type, file_size, category, tags, version_group_id, version_number, storage_provider, object_key, storage_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (company_id, issue_id, uploaded_by, file_name, mime_type, file_size, category, tags, version_group_id, version_number, storage_provider, object_key, storage_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        companyId,
         req.params.id,
         req.user.id,
         safeFileName,
@@ -269,15 +280,15 @@ async function createIssueAttachment(req, res, next) {
 
     if (!versionGroupId) {
       await pool.execute(
-        "UPDATE issue_attachments SET version_group_id = ? WHERE id = ?",
-        [attachmentId, attachmentId]
+        "UPDATE issue_attachments SET version_group_id = ? WHERE id = ? AND company_id = ?",
+        [attachmentId, attachmentId, companyId]
       );
     }
 
     await pool.execute(
-      `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, new_value)
-       VALUES (?, ?, 'added_attachment', 'attachment', ?)`,
-      [req.params.id, req.user.id, safeFileName]
+      `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, new_value)
+       VALUES (?, ?, ?, 'added_attachment', 'attachment', ?)`,
+      [companyId, req.params.id, req.user.id, safeFileName]
     );
     logger.audit("attachment_uploaded", req, {
       issueId: Number(req.params.id),
@@ -289,7 +300,7 @@ async function createIssueAttachment(req, res, next) {
       uploadMode: "backend"
     });
 
-    const attachment = await findAttachment(req.params.id, attachmentId);
+    const attachment = await findAttachment(req.params.id, attachmentId, companyId);
 
     res.status(201).json({
       message: "Attachment uploaded",
@@ -302,6 +313,7 @@ async function createIssueAttachment(req, res, next) {
 
 async function createPresignedAttachmentUpload(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const {
       fileName,
       mimeType,
@@ -309,7 +321,7 @@ async function createPresignedAttachmentUpload(req, res, next) {
       category,
       tags
     } = req.body;
-    const ticket = await findTicket(req.params.id);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -351,6 +363,7 @@ async function createPresignedAttachmentUpload(req, res, next) {
 
 async function completePresignedAttachmentUpload(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const {
       fileName,
       mimeType,
@@ -360,7 +373,7 @@ async function completePresignedAttachmentUpload(req, res, next) {
       tags,
       replacesAttachmentId
     } = req.body;
-    const ticket = await findTicket(req.params.id);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -383,7 +396,7 @@ async function completePresignedAttachmentUpload(req, res, next) {
     let versionNumber = 1;
 
     if (replacesAttachmentId) {
-      const previousAttachment = await findAttachment(req.params.id, replacesAttachmentId);
+      const previousAttachment = await findAttachment(req.params.id, replacesAttachmentId, companyId);
 
       if (!previousAttachment) {
         throw new AppError("Previous attachment version not found", 404);
@@ -393,17 +406,18 @@ async function completePresignedAttachmentUpload(req, res, next) {
       const [versionRows] = await pool.execute(
         `SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version_number
          FROM issue_attachments
-         WHERE issue_id = ? AND version_group_id = ?`,
-        [req.params.id, versionGroupId]
+         WHERE issue_id = ? AND company_id = ? AND version_group_id = ?`,
+        [req.params.id, companyId, versionGroupId]
       );
       versionNumber = versionRows[0].next_version_number;
     }
 
     const [result] = await pool.execute(
       `INSERT INTO issue_attachments
-         (issue_id, uploaded_by, file_name, mime_type, file_size, category, tags, version_group_id, version_number, storage_provider, object_key, storage_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, NULL)`,
+         (company_id, issue_id, uploaded_by, file_name, mime_type, file_size, category, tags, version_group_id, version_number, storage_provider, object_key, storage_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, NULL)`,
       [
+        companyId,
         req.params.id,
         req.user.id,
         safeFileName,
@@ -420,15 +434,15 @@ async function completePresignedAttachmentUpload(req, res, next) {
 
     if (!versionGroupId) {
       await pool.execute(
-        "UPDATE issue_attachments SET version_group_id = ? WHERE id = ?",
-        [attachmentId, attachmentId]
+        "UPDATE issue_attachments SET version_group_id = ? WHERE id = ? AND company_id = ?",
+        [attachmentId, attachmentId, companyId]
       );
     }
 
     await pool.execute(
-      `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, new_value)
-       VALUES (?, ?, 'added_attachment', 'attachment', ?)`,
-      [req.params.id, req.user.id, safeFileName]
+      `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, new_value)
+       VALUES (?, ?, ?, 'added_attachment', 'attachment', ?)`,
+      [companyId, req.params.id, req.user.id, safeFileName]
     );
     logger.audit("attachment_uploaded", req, {
       issueId: Number(req.params.id),
@@ -440,7 +454,7 @@ async function completePresignedAttachmentUpload(req, res, next) {
       uploadMode: "direct"
     });
 
-    const attachment = await findAttachment(req.params.id, attachmentId);
+    const attachment = await findAttachment(req.params.id, attachmentId, companyId);
 
     res.status(201).json({
       message: "Attachment uploaded",
@@ -453,13 +467,14 @@ async function completePresignedAttachmentUpload(req, res, next) {
 
 async function downloadIssueAttachment(req, res, next) {
   try {
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const companyId = requireCompany(req);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
     }
 
-    const attachmentStorage = await findAttachmentStorage(req.params.id, req.params.attachmentId);
+    const attachmentStorage = await findAttachmentStorage(req.params.id, req.params.attachmentId, companyId);
     const fileBuffer = await readAttachmentObject(attachmentStorage);
 
     res.attachment(attachment.file_name);
@@ -472,8 +487,9 @@ async function downloadIssueAttachment(req, res, next) {
 
 async function analyzeIssueAttachment(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -483,7 +499,7 @@ async function analyzeIssueAttachment(req, res, next) {
       throw new AppError("Attachment not found", 404);
     }
 
-    const attachmentStorage = await findAttachmentStorage(req.params.id, req.params.attachmentId);
+    const attachmentStorage = await findAttachmentStorage(req.params.id, req.params.attachmentId, companyId);
     const fileBuffer = await readAttachmentObject(attachmentStorage);
     const insight = await generateAttachmentInsight({
       ticket,
@@ -495,18 +511,20 @@ async function analyzeIssueAttachment(req, res, next) {
     await pool.execute(
       `UPDATE issue_attachments
        SET ai_summary = ?, extracted_text = ?
-       WHERE id = ?`,
+       WHERE id = ? AND company_id = ?`,
       [
         insight.summary || null,
         insight.extractedText || null,
-        req.params.attachmentId
+        req.params.attachmentId,
+        companyId
       ]
     );
     await pool.execute(
       `INSERT INTO issue_attachment_analyses
-         (issue_id, attachment_id, analyzed_by, prompt, summary, extracted_text, suggested_action, risk_level)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (company_id, issue_id, attachment_id, analyzed_by, prompt, summary, extracted_text, suggested_action, risk_level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        companyId,
         req.params.id,
         req.params.attachmentId,
         req.user.id,
@@ -519,9 +537,9 @@ async function analyzeIssueAttachment(req, res, next) {
     );
 
     await pool.execute(
-      `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, new_value)
-       VALUES (?, ?, 'analyzed_attachment', 'attachment', ?)`,
-      [req.params.id, req.user.id, attachment.file_name]
+      `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, new_value)
+       VALUES (?, ?, ?, 'analyzed_attachment', 'attachment', ?)`,
+      [companyId, req.params.id, req.user.id, attachment.file_name]
     );
     logger.audit("attachment_analyzed", req, {
       issueId: Number(req.params.id),
@@ -542,7 +560,8 @@ async function analyzeIssueAttachment(req, res, next) {
 
 async function deleteIssueAttachment(req, res, next) {
   try {
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const companyId = requireCompany(req);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
@@ -553,13 +572,13 @@ async function deleteIssueAttachment(req, res, next) {
     }
 
     await pool.execute(
-      "UPDATE issue_attachments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.params.attachmentId]
+      "UPDATE issue_attachments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?",
+      [req.params.attachmentId, companyId]
     );
     await pool.execute(
-      `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, old_value)
-       VALUES (?, ?, 'deleted_attachment', 'attachment', ?)`,
-      [req.params.id, req.user.id, attachment.file_name]
+      `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, old_value)
+       VALUES (?, ?, ?, 'deleted_attachment', 'attachment', ?)`,
+      [companyId, req.params.id, req.user.id, attachment.file_name]
     );
     logger.audit("attachment_deleted", req, {
       issueId: Number(req.params.id),
@@ -575,7 +594,8 @@ async function deleteIssueAttachment(req, res, next) {
 
 async function listAttachmentComments(req, res, next) {
   try {
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const companyId = requireCompany(req);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
@@ -589,9 +609,9 @@ async function listAttachmentComments(req, res, next) {
          u.last_name AS author_last_name
        FROM issue_attachment_comments c
        JOIN users u ON u.id = c.user_id
-       WHERE c.issue_id = ? AND c.attachment_id = ? AND c.deleted_at IS NULL
+       WHERE c.issue_id = ? AND c.attachment_id = ? AND c.company_id = ? AND c.deleted_at IS NULL
        ORDER BY c.created_at ASC`,
-      [req.params.id, req.params.attachmentId]
+      [req.params.id, req.params.attachmentId, companyId]
     );
 
     res.json({ comments });
@@ -602,8 +622,9 @@ async function listAttachmentComments(req, res, next) {
 
 async function createAttachmentComment(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const { commentText } = req.body;
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
@@ -614,14 +635,14 @@ async function createAttachmentComment(req, res, next) {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO issue_attachment_comments (issue_id, attachment_id, user_id, comment_text)
-       VALUES (?, ?, ?, ?)`,
-      [req.params.id, req.params.attachmentId, req.user.id, commentText.trim()]
+      `INSERT INTO issue_attachment_comments (company_id, issue_id, attachment_id, user_id, comment_text)
+       VALUES (?, ?, ?, ?, ?)`,
+      [companyId, req.params.id, req.params.attachmentId, req.user.id, commentText.trim()]
     );
     await pool.execute(
-      `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, new_value)
-       VALUES (?, ?, 'added_attachment_comment', 'attachment', ?)`,
-      [req.params.id, req.user.id, attachment.file_name]
+      `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, new_value)
+       VALUES (?, ?, ?, 'added_attachment_comment', 'attachment', ?)`,
+      [companyId, req.params.id, req.user.id, attachment.file_name]
     );
     logger.audit("attachment_comment_added", req, {
       issueId: Number(req.params.id),
@@ -637,8 +658,8 @@ async function createAttachmentComment(req, res, next) {
          u.last_name AS author_last_name
        FROM issue_attachment_comments c
        JOIN users u ON u.id = c.user_id
-       WHERE c.id = ?`,
-      [result.insertId]
+       WHERE c.id = ? AND c.company_id = ?`,
+      [result.insertId, companyId]
     );
 
     res.status(201).json({
@@ -652,7 +673,8 @@ async function createAttachmentComment(req, res, next) {
 
 async function listAttachmentAnalyses(req, res, next) {
   try {
-    const attachment = await findAttachment(req.params.id, req.params.attachmentId);
+    const companyId = requireCompany(req);
+    const attachment = await findAttachment(req.params.id, req.params.attachmentId, companyId);
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
@@ -667,9 +689,9 @@ async function listAttachmentAnalyses(req, res, next) {
          u.last_name AS analyzed_by_last_name
        FROM issue_attachment_analyses a
        JOIN users u ON u.id = a.analyzed_by
-       WHERE a.issue_id = ? AND a.attachment_id = ?
+       WHERE a.issue_id = ? AND a.attachment_id = ? AND a.company_id = ?
        ORDER BY a.created_at DESC`,
-      [req.params.id, req.params.attachmentId]
+      [req.params.id, req.params.attachmentId, companyId]
     );
 
     res.json({ analyses });

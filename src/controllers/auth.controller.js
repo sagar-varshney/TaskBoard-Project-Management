@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { pool } = require("../config/db");
 const { config } = require("../config/env");
+const { ensureTenantSchema } = require("../config/tenant-schema");
 const AppError = require("../utils/app-error");
 const { signToken } = require("../utils/jwt");
 const logger = require("../utils/logger");
@@ -161,6 +162,8 @@ function validateLoginInput(body) {
 
 async function register(req, res, next) {
   try {
+    await ensureTenantSchema();
+
     if (!config.auth.allowPublicRegistration) {
       throw new AppError("Public registration is disabled. Please contact an administrator for access.", 403);
     }
@@ -183,12 +186,13 @@ async function register(req, res, next) {
     // bcrypt stores a one-way password hash; the real password is never saved.
     const passwordHash = await bcrypt.hash(password, 12);
     const [result] = await pool.execute(
-      "INSERT INTO users (email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, 'member')",
+      "INSERT INTO users (company_id, email, password_hash, first_name, last_name, role) VALUES (1, ?, ?, ?, ?, 'member')",
       [normalizedEmail, passwordHash, firstName.trim(), lastName.trim()]
     );
 
     const user = {
       id: result.insertId,
+      company_id: 1,
       email: normalizedEmail,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -216,6 +220,7 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
+    await ensureTenantSchema();
     validateLoginInput(req.body);
 
     const { email, password } = req.body;
@@ -224,7 +229,7 @@ async function login(req, res, next) {
     await assertLoginNotLocked(normalizedEmail);
 
     const [rows] = await pool.execute(
-      `SELECT id, email, password_hash, first_name, last_name, role, token_version
+      `SELECT id, company_id, email, password_hash, first_name, last_name, role, token_version
        FROM users
        WHERE email = ? AND deleted_at IS NULL`,
       [normalizedEmail]

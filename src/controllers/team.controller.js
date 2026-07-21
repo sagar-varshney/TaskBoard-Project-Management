@@ -2,10 +2,19 @@ const { pool } = require("../config/db");
 const AppError = require("../utils/app-error");
 const logger = require("../utils/logger");
 
+function requireCompany(req) {
+  if (!req.user?.company_id) {
+    throw new AppError("Your account is not assigned to a company workspace", 403);
+  }
+
+  return req.user.company_id;
+}
+
 async function listTeams(req, res, next) {
   try {
-    const values = [];
-    const filters = [];
+    const companyId = requireCompany(req);
+    const values = [companyId];
+    const filters = ["t.company_id = ?"];
 
     if (req.query.projectId) {
       filters.push("t.project_id = ?");
@@ -14,11 +23,11 @@ async function listTeams(req, res, next) {
 
     const [teams] = await pool.execute(
       `SELECT
-         t.id, t.project_id, t.name, t.description, t.created_at, t.updated_at,
+         t.id, t.company_id, t.project_id, t.name, t.description, t.created_at, t.updated_at,
          COUNT(m.user_id) AS member_count
        FROM scrum_teams t
        LEFT JOIN scrum_team_members m ON m.team_id = t.id
-       ${filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : ""}
+       WHERE ${filters.join(" AND ")}
        GROUP BY t.id
        ORDER BY t.created_at DESC`,
       values
@@ -32,6 +41,7 @@ async function listTeams(req, res, next) {
 
 async function createTeam(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const { projectId, name, description, memberIds = [] } = req.body;
 
     if (!projectId || !name) {
@@ -44,9 +54,31 @@ async function createTeam(req, res, next) {
       // Transaction keeps team creation and member assignment together.
       // If one member insert fails, the whole team creation is rolled back.
       await connection.beginTransaction();
+      const [projects] = await connection.execute(
+        "SELECT id FROM projects WHERE id = ? AND company_id = ?",
+        [projectId, companyId]
+      );
+
+      if (projects.length === 0) {
+        throw new AppError("Project does not exist in your company workspace", 400);
+      }
+
+      if (memberIds.length > 0) {
+        const placeholders = memberIds.map(() => "?").join(", ");
+        const [members] = await connection.execute(
+          `SELECT id FROM users
+           WHERE company_id = ? AND deleted_at IS NULL AND id IN (${placeholders})`,
+          [companyId, ...memberIds]
+        );
+
+        if (members.length !== memberIds.length) {
+          throw new AppError("Every team member must belong to your company workspace", 400);
+        }
+      }
+
       const [result] = await connection.execute(
-        "INSERT INTO scrum_teams (project_id, name, description) VALUES (?, ?, ?)",
-        [projectId, name.trim(), description || null]
+        "INSERT INTO scrum_teams (company_id, project_id, name, description) VALUES (?, ?, ?, ?)",
+        [companyId, projectId, name.trim(), description || null]
       );
 
       for (const memberId of memberIds) {
@@ -60,6 +92,7 @@ async function createTeam(req, res, next) {
       res.status(201).json({
         team: {
           id: result.insertId,
+          company_id: companyId,
           project_id: projectId,
           name: name.trim(),
           description: description || null,

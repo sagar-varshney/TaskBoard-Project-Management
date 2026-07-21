@@ -31,7 +31,7 @@ const ticketSelect = `
   -- Shared ticket query used by list/get/update responses.
   -- It joins related tables so the frontend receives readable names/emails, not just IDs.
   SELECT
-    i.id, i.project_id, i.reporter_id, i.assignee_id, i.owner_id, i.sprint_id,
+    i.id, i.company_id, i.project_id, i.reporter_id, i.assignee_id, i.owner_id, i.sprint_id,
     i.scrum_team_id, i.title, i.description,
     i.issue_type, i.status, i.priority, i.resolution, i.sprint, i.scrum_team,
     i.impact, i.fix_plan, i.created_at, i.updated_at,
@@ -51,6 +51,14 @@ const ticketSelect = `
   LEFT JOIN scrum_teams team ON team.id = i.scrum_team_id
 `;
 
+function requireCompany(req) {
+  if (!req.user?.company_id) {
+    throw new AppError("Your account is not assigned to a company workspace", 403);
+  }
+
+  return req.user.company_id;
+}
+
 function validateOption(value, allowedValues, fieldName) {
   // Keeps incoming API values aligned with the ENUM values in MySQL.
   if (value !== undefined && !allowedValues.includes(value)) {
@@ -64,15 +72,30 @@ function validateTextLength(value, maxLength, fieldName) {
   }
 }
 
-async function findTicket(id) {
+async function findTicket(id, companyId) {
   // Single source for fetching a ticket with all joined display fields.
   const [rows] = await pool.execute(
     `${ticketSelect}
-     WHERE i.id = ?`,
-    [id]
+     WHERE i.id = ? AND i.company_id = ?`,
+    [id, companyId]
   );
 
   return rows[0];
+}
+
+async function assertCompanyReference(tableName, id, companyId, label) {
+  if (!id) {
+    return;
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT id FROM ${tableName} WHERE id = ? AND company_id = ?`,
+    [id, companyId]
+  );
+
+  if (rows.length === 0) {
+    throw new AppError(`${label} does not exist in your company workspace`, 400);
+  }
 }
 
 function normalizeActivityValue(value) {
@@ -84,12 +107,13 @@ function normalizeActivityValue(value) {
   return String(value);
 }
 
-async function logIssueActivity(issueId, actorId, action, fieldName = null, oldValue = null, newValue = null) {
+async function logIssueActivity(companyId, issueId, actorId, action, fieldName = null, oldValue = null, newValue = null) {
   // Inserts one audit event into issue_activity.
   await pool.execute(
-    `INSERT INTO issue_activity (issue_id, actor_id, action, field_name, old_value, new_value)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO issue_activity (company_id, issue_id, actor_id, action, field_name, old_value, new_value)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
+      companyId,
       issueId,
       actorId,
       action,
@@ -100,7 +124,7 @@ async function logIssueActivity(issueId, actorId, action, fieldName = null, oldV
   );
 }
 
-async function logChangedFields(issueId, actorId, beforeTicket, afterTicket, requestBody) {
+async function logChangedFields(companyId, issueId, actorId, beforeTicket, afterTicket, requestBody) {
   // Only log fields that were actually sent in the request and whose values changed.
   for (const [columnName, bodyField] of activityFields) {
     if (requestBody[bodyField] === undefined) {
@@ -111,15 +135,16 @@ async function logChangedFields(issueId, actorId, beforeTicket, afterTicket, req
     const afterValue = normalizeActivityValue(afterTicket[columnName]);
 
     if (beforeValue !== afterValue) {
-      await logIssueActivity(issueId, actorId, "updated_field", columnName, beforeValue, afterValue);
+      await logIssueActivity(companyId, issueId, actorId, "updated_field", columnName, beforeValue, afterValue);
     }
   }
 }
 
 async function listIssues(req, res, next) {
   try {
-    const values = [];
-    const filters = [];
+    const companyId = requireCompany(req);
+    const values = [companyId];
+    const filters = ["i.company_id = ?"];
 
     // These optional query params power filtering on the dashboard.
     if (req.query.projectId) {
@@ -135,7 +160,7 @@ async function listIssues(req, res, next) {
 
     const [tickets] = await pool.execute(
       `${ticketSelect}
-       ${filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : ""}
+       WHERE ${filters.join(" AND ")}
        ORDER BY i.created_at DESC`,
       values
     );
@@ -148,12 +173,13 @@ async function listIssues(req, res, next) {
 
 async function listMyIssues(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     // Personal queue includes tickets the user reported, owns, or is assigned to.
     const [tickets] = await pool.execute(
       `${ticketSelect}
-       WHERE i.assignee_id = ? OR i.owner_id = ? OR i.reporter_id = ?
+       WHERE i.company_id = ? AND (i.assignee_id = ? OR i.owner_id = ? OR i.reporter_id = ?)
        ORDER BY i.updated_at DESC`,
-      [req.user.id, req.user.id, req.user.id]
+      [companyId, req.user.id, req.user.id, req.user.id]
     );
 
     res.json({ tickets });
@@ -164,7 +190,8 @@ async function listMyIssues(req, res, next) {
 
 async function getIssue(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -178,6 +205,7 @@ async function getIssue(req, res, next) {
 
 async function createIssue(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const {
       projectId,
       assigneeId,
@@ -218,12 +246,18 @@ async function createIssue(req, res, next) {
     validateOption(issueType, allowedIssueTypes, "issueType");
     validateOption(priority, allowedPriorities, "priority");
     validateOption(resolution, allowedResolutions, "resolution");
+    await assertCompanyReference("projects", projectId, companyId, "Project");
+    await assertCompanyReference("users", assigneeId, companyId, "Assignee");
+    await assertCompanyReference("users", ownerId, companyId, "Owner");
+    await assertCompanyReference("sprints", sprintId, companyId, "Sprint");
+    await assertCompanyReference("scrum_teams", scrumTeamId, companyId, "Scrum team");
 
     const [result] = await pool.execute(
       `INSERT INTO issues
-         (project_id, reporter_id, assignee_id, owner_id, sprint_id, scrum_team_id, title, description, issue_type, priority, resolution, sprint, scrum_team, impact, fix_plan)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (company_id, project_id, reporter_id, assignee_id, owner_id, sprint_id, scrum_team_id, title, description, issue_type, priority, resolution, sprint, scrum_team, impact, fix_plan)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        companyId,
         projectId,
         req.user.id,
         assigneeId || null,
@@ -242,9 +276,9 @@ async function createIssue(req, res, next) {
       ]
     );
 
-    const ticket = await findTicket(result.insertId);
+    const ticket = await findTicket(result.insertId, companyId);
     // First audit entry for the ticket.
-    await logIssueActivity(ticket.id, req.user.id, "created_ticket");
+    await logIssueActivity(companyId, ticket.id, req.user.id, "created_ticket");
     logger.audit("issue_created", req, {
       issueId: ticket.id,
       ticketKey: ticket.ticket_key,
@@ -265,6 +299,7 @@ async function createIssue(req, res, next) {
 
 async function updateIssue(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     // Dynamic update: only fields provided in req.body are added to the SQL SET clause.
     const fields = [];
     const values = [];
@@ -285,7 +320,7 @@ async function updateIssue(req, res, next) {
       fixPlan
     } = req.body;
     const requestedFields = Object.keys(req.body);
-    const existingTicket = await findTicket(req.params.id);
+    const existingTicket = await findTicket(req.params.id, companyId);
 
     if (!existingTicket) {
       throw new AppError("Ticket not found", 404);
@@ -319,6 +354,10 @@ async function updateIssue(req, res, next) {
     validateOption(status, allowedStatuses, "status");
     validateOption(priority, allowedPriorities, "priority");
     validateOption(resolution, allowedResolutions, "resolution");
+    await assertCompanyReference("users", assigneeId, companyId, "Assignee");
+    await assertCompanyReference("users", ownerId, companyId, "Owner");
+    await assertCompanyReference("sprints", sprintId, companyId, "Sprint");
+    await assertCompanyReference("scrum_teams", scrumTeamId, companyId, "Scrum team");
 
     if (title !== undefined) {
       if (!title.trim()) {
@@ -403,17 +442,18 @@ async function updateIssue(req, res, next) {
     }
 
     values.push(req.params.id);
+    values.push(companyId);
     // fields.join(", ") produces SQL like: "status = ?, resolution = ?".
     await pool.execute(
       `UPDATE issues
        SET ${fields.join(", ")}
-       WHERE id = ?`,
+       WHERE id = ? AND company_id = ?`,
       values
     );
 
-    const ticket = await findTicket(req.params.id);
+    const ticket = await findTicket(req.params.id, companyId);
     // Compare the old/new ticket and write audit records for changed fields.
-    await logChangedFields(req.params.id, req.user.id, existingTicket, ticket, req.body);
+    await logChangedFields(companyId, req.params.id, req.user.id, existingTicket, ticket, req.body);
     logger.audit("issue_updated", req, {
       issueId: Number(req.params.id),
       ticketKey: ticket.ticket_key,
@@ -435,7 +475,8 @@ async function updateIssue(req, res, next) {
 
 async function listIssueActivity(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -451,9 +492,9 @@ async function listIssueActivity(req, res, next) {
          u.last_name AS actor_last_name
        FROM issue_activity a
        JOIN users u ON u.id = a.actor_id
-       WHERE a.issue_id = ?
+       WHERE a.issue_id = ? AND a.company_id = ?
        ORDER BY a.created_at DESC`,
-      [req.params.id]
+      [req.params.id, companyId]
     );
 
     res.json({ activity });
@@ -470,7 +511,8 @@ async function updateIssueStatus(req, res, next) {
 
 async function createIssueSummary(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -490,7 +532,8 @@ async function createIssueSummary(req, res, next) {
 
 async function listIssueComments(req, res, next) {
   try {
-    const ticket = await findTicket(req.params.id);
+    const companyId = requireCompany(req);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
@@ -505,9 +548,9 @@ async function listIssueComments(req, res, next) {
          u.last_name AS author_last_name
        FROM issue_comments c
        JOIN users u ON u.id = c.user_id
-       WHERE c.issue_id = ? AND c.deleted_at IS NULL
+       WHERE c.issue_id = ? AND c.company_id = ? AND c.deleted_at IS NULL
        ORDER BY c.created_at ASC`,
-      [req.params.id]
+      [req.params.id, companyId]
     );
 
     res.json({ comments });
@@ -518,6 +561,7 @@ async function listIssueComments(req, res, next) {
 
 async function createIssueComment(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const { commentText, isInternal = false } = req.body;
 
     if (!commentText || !commentText.trim()) {
@@ -526,19 +570,19 @@ async function createIssueComment(req, res, next) {
 
     validateTextLength(commentText, 4000, "commentText");
 
-    const ticket = await findTicket(req.params.id);
+    const ticket = await findTicket(req.params.id, companyId);
 
     if (!ticket) {
       throw new AppError("Ticket not found", 404);
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO issue_comments (issue_id, user_id, comment_text, is_internal)
-       VALUES (?, ?, ?, ?)`,
-      [req.params.id, req.user.id, commentText.trim(), Boolean(isInternal)]
+      `INSERT INTO issue_comments (company_id, issue_id, user_id, comment_text, is_internal)
+       VALUES (?, ?, ?, ?, ?)`,
+      [companyId, req.params.id, req.user.id, commentText.trim(), Boolean(isInternal)]
     );
     // Comment actions also appear in the audit timeline.
-    await logIssueActivity(req.params.id, req.user.id, "added_comment");
+    await logIssueActivity(companyId, req.params.id, req.user.id, "added_comment");
     logger.audit("issue_comment_added", req, {
       issueId: Number(req.params.id),
       commentId: result.insertId,
@@ -553,8 +597,8 @@ async function createIssueComment(req, res, next) {
          u.last_name AS author_last_name
        FROM issue_comments c
        JOIN users u ON u.id = c.user_id
-       WHERE c.id = ?`,
-      [result.insertId]
+       WHERE c.id = ? AND c.company_id = ?`,
+      [result.insertId, companyId]
     );
 
     res.status(201).json({
@@ -568,6 +612,7 @@ async function createIssueComment(req, res, next) {
 
 async function updateIssueComment(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const { commentText, isInternal } = req.body;
 
     if (!commentText || !commentText.trim()) {
@@ -579,8 +624,8 @@ async function updateIssueComment(req, res, next) {
     const [existingComments] = await pool.execute(
       `SELECT id, user_id
        FROM issue_comments
-       WHERE id = ? AND issue_id = ? AND deleted_at IS NULL`,
-      [req.params.commentId, req.params.id]
+       WHERE id = ? AND issue_id = ? AND company_id = ? AND deleted_at IS NULL`,
+      [req.params.commentId, req.params.id, companyId]
     );
 
     if (existingComments.length === 0) {
@@ -595,10 +640,10 @@ async function updateIssueComment(req, res, next) {
     await pool.execute(
       `UPDATE issue_comments
        SET comment_text = ?, is_internal = ?
-       WHERE id = ?`,
-      [commentText.trim(), Boolean(isInternal), req.params.commentId]
+       WHERE id = ? AND company_id = ?`,
+      [commentText.trim(), Boolean(isInternal), req.params.commentId, companyId]
     );
-    await logIssueActivity(req.params.id, req.user.id, "edited_comment");
+    await logIssueActivity(companyId, req.params.id, req.user.id, "edited_comment");
     logger.audit("issue_comment_updated", req, {
       issueId: Number(req.params.id),
       commentId: Number(req.params.commentId),
@@ -613,8 +658,8 @@ async function updateIssueComment(req, res, next) {
          u.last_name AS author_last_name
        FROM issue_comments c
        JOIN users u ON u.id = c.user_id
-       WHERE c.id = ?`,
-      [req.params.commentId]
+       WHERE c.id = ? AND c.company_id = ?`,
+      [req.params.commentId, companyId]
     );
 
     res.json({
@@ -628,11 +673,12 @@ async function updateIssueComment(req, res, next) {
 
 async function deleteIssueComment(req, res, next) {
   try {
+    const companyId = requireCompany(req);
     const [existingComments] = await pool.execute(
       `SELECT id, user_id
        FROM issue_comments
-       WHERE id = ? AND issue_id = ? AND deleted_at IS NULL`,
-      [req.params.commentId, req.params.id]
+       WHERE id = ? AND issue_id = ? AND company_id = ? AND deleted_at IS NULL`,
+      [req.params.commentId, req.params.id, companyId]
     );
 
     if (existingComments.length === 0) {
@@ -645,10 +691,10 @@ async function deleteIssueComment(req, res, next) {
 
     await pool.execute(
       // Soft delete preserves the comment record but hides it from normal comment lists.
-      "UPDATE issue_comments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.params.commentId]
+      "UPDATE issue_comments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?",
+      [req.params.commentId, companyId]
     );
-    await logIssueActivity(req.params.id, req.user.id, "deleted_comment");
+    await logIssueActivity(companyId, req.params.id, req.user.id, "deleted_comment");
     logger.audit("issue_comment_deleted", req, {
       issueId: Number(req.params.id),
       commentId: Number(req.params.commentId)
