@@ -18,6 +18,23 @@ function initialsFor(user) {
     .toUpperCase();
 }
 
+const emptyEmployee = {
+  email: "",
+  password: "",
+  firstName: "",
+  lastName: "",
+  role: "member"
+};
+
+const emptyCompanyForm = {
+  companyName: "",
+  slug: "",
+  adminEmail: "",
+  adminPassword: "",
+  adminFirstName: "",
+  adminLastName: ""
+};
+
 export default function AdminManagement({ mode }) {
   // One component handles two admin pages: /admin/sprints and /admin/teams.
   const [currentUser, setCurrentUser] = useState(null);
@@ -38,8 +55,11 @@ export default function AdminManagement({ mode }) {
     description: "",
     memberIds: []
   });
+  const [employeeRows, setEmployeeRows] = useState([{ ...emptyEmployee }]);
+  const [companyForm, setCompanyForm] = useState({ ...emptyCompanyForm });
   const token = typeof window !== "undefined" ? localStorage.getItem("jiraCloneToken") : "";
   const isSprintMode = mode === "sprints";
+  const isUsersMode = mode === "users";
 
   const authHeaders = useMemo(
     () => ({
@@ -87,13 +107,13 @@ export default function AdminManagement({ mode }) {
       const [projectData, userData, resourceData] = await Promise.all([
         apiRequest("/projects"),
         apiRequest("/users"),
-        apiRequest(isSprintMode ? "/sprints" : "/teams")
+        isUsersMode ? Promise.resolve({ sprints: [], teams: [] }) : apiRequest(isSprintMode ? "/sprints" : "/teams")
       ]);
       const firstProjectId = projectData.projects[0] ? String(projectData.projects[0].id) : "";
 
       setProjects(projectData.projects);
       setUsers(userData.users);
-      setItems(isSprintMode ? resourceData.sprints : resourceData.teams);
+      setItems(isUsersMode ? [] : isSprintMode ? resourceData.sprints : resourceData.teams);
       setSprintForm((current) => ({ ...current, projectId: current.projectId || firstProjectId }));
       setTeamForm((current) => ({ ...current, projectId: current.projectId || firstProjectId }));
     } catch (error) {
@@ -137,6 +157,87 @@ export default function AdminManagement({ mode }) {
     }
   }
 
+  function updateEmployeeRow(index, field, value) {
+    setEmployeeRows((currentRows) =>
+      currentRows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+    );
+  }
+
+  function addEmployeeRow() {
+    setEmployeeRows((currentRows) => [...currentRows, { ...emptyEmployee }]);
+  }
+
+  function removeEmployeeRow(index) {
+    setEmployeeRows((currentRows) =>
+      currentRows.length === 1 ? currentRows : currentRows.filter((row, rowIndex) => rowIndex !== index)
+    );
+  }
+
+  async function createEmployees(event) {
+    event.preventDefault();
+    setMessage("");
+
+    try {
+      const employees = employeeRows.map((row) => ({
+        email: row.email.trim(),
+        password: row.password,
+        firstName: row.firstName.trim(),
+        lastName: row.lastName.trim(),
+        role: row.role
+      }));
+      const data = await apiRequest("/users/bulk", {
+        method: "POST",
+        body: JSON.stringify({ employees })
+      });
+
+      setEmployeeRows([{ ...emptyEmployee }]);
+      await loadManagement();
+      setMessage(`Added ${data.createdUsers.length} employee(s). Skipped ${data.skippedUsers.length}.`);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function changeUserRole(userId, role) {
+    setMessage("");
+
+    try {
+      await apiRequest(`/users/${userId}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role })
+      });
+      await loadManagement();
+      setMessage("User role updated.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function createCompany(event) {
+    event.preventDefault();
+    setMessage("");
+
+    try {
+      await apiRequest("/companies", {
+        method: "POST",
+        body: JSON.stringify({
+          companyName: companyForm.companyName.trim(),
+          slug: companyForm.slug.trim(),
+          admin: {
+            email: companyForm.adminEmail.trim(),
+            password: companyForm.adminPassword,
+            firstName: companyForm.adminFirstName.trim(),
+            lastName: companyForm.adminLastName.trim()
+          }
+        })
+      });
+      setCompanyForm({ ...emptyCompanyForm });
+      setMessage("Company workspace and company admin created.");
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
   return (
     <main className="dashboard-shell role-admin">
       <aside className="sidebar">
@@ -153,7 +254,8 @@ export default function AdminManagement({ mode }) {
           {currentUser?.role === "admin" ? (
             <>
               <a className={`nav-link ${isSprintMode ? "active" : ""}`} href="/admin/sprints">Sprints</a>
-              <a className={`nav-link ${!isSprintMode ? "active" : ""}`} href="/admin/teams">Scrum teams</a>
+              <a className={`nav-link ${!isSprintMode && !isUsersMode ? "active" : ""}`} href="/admin/teams">Scrum teams</a>
+              <a className={`nav-link ${isUsersMode ? "active" : ""}`} href="/admin/users">Employees</a>
             </>
           ) : null}
         </nav>
@@ -172,7 +274,7 @@ export default function AdminManagement({ mode }) {
         <header className="dashboard-header">
           <div>
             <p className="dashboard-eyebrow">Admin workspace</p>
-            <h1>{isSprintMode ? "Sprint management" : "Scrum team management"}</h1>
+            <h1>{isUsersMode ? "Employee management" : isSprintMode ? "Sprint management" : "Scrum team management"}</h1>
           </div>
           <div className="header-actions">
             <ThemeToggle />
@@ -184,7 +286,127 @@ export default function AdminManagement({ mode }) {
 
         {!isLoading && currentUser?.role === "admin" ? (
           <section className="management-layout">
-            {isSprintMode ? (
+            {isUsersMode ? (
+              <div className="admin-user-forms">
+                <form className="dashboard-form" onSubmit={createEmployees}>
+                  <h2>Add employees</h2>
+                  {employeeRows.map((employee, index) => (
+                    <div className="employee-row" key={index}>
+                      <label>
+                        Email
+                        <input
+                          required
+                          type="email"
+                          placeholder="employee@company.com"
+                          value={employee.email}
+                          onChange={(event) => updateEmployeeRow(index, "email", event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        First name
+                        <input
+                          required
+                          value={employee.firstName}
+                          onChange={(event) => updateEmployeeRow(index, "firstName", event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Last name
+                        <input
+                          required
+                          value={employee.lastName}
+                          onChange={(event) => updateEmployeeRow(index, "lastName", event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Role
+                        <select
+                          value={employee.role}
+                          onChange={(event) => updateEmployeeRow(index, "role", event.target.value)}
+                        >
+                          <option value="member">Member</option>
+                          <option value="developer">Developer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </label>
+                      <label>
+                        Temporary password
+                        <input
+                          required
+                          type="password"
+                          minLength={8}
+                          value={employee.password}
+                          onChange={(event) => updateEmployeeRow(index, "password", event.target.value)}
+                        />
+                      </label>
+                      <button className="secondary-action compact-link" type="button" onClick={() => removeEmployeeRow(index)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button className="secondary-action compact-link" type="button" onClick={addEmployeeRow}>Add another employee</button>
+                  <button className="primary-action" type="submit">Create employees</button>
+                </form>
+
+                <form className="dashboard-form" onSubmit={createCompany}>
+                  <h2>Create company workspace</h2>
+                  <label>
+                    Company name
+                    <input
+                      required
+                      value={companyForm.companyName}
+                      onChange={(event) => setCompanyForm({ ...companyForm, companyName: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Company slug
+                    <input
+                      placeholder="acme-inc"
+                      value={companyForm.slug}
+                      onChange={(event) => setCompanyForm({ ...companyForm, slug: event.target.value })}
+                    />
+                  </label>
+                  <div className="employee-row">
+                    <label>
+                      Admin email
+                      <input
+                        required
+                        type="email"
+                        value={companyForm.adminEmail}
+                        onChange={(event) => setCompanyForm({ ...companyForm, adminEmail: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Admin first name
+                      <input
+                        required
+                        value={companyForm.adminFirstName}
+                        onChange={(event) => setCompanyForm({ ...companyForm, adminFirstName: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Admin last name
+                      <input
+                        required
+                        value={companyForm.adminLastName}
+                        onChange={(event) => setCompanyForm({ ...companyForm, adminLastName: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Admin temporary password
+                      <input
+                        required
+                        type="password"
+                        minLength={8}
+                        value={companyForm.adminPassword}
+                        onChange={(event) => setCompanyForm({ ...companyForm, adminPassword: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <button className="primary-action" type="submit">Create company admin</button>
+                </form>
+              </div>
+            ) : isSprintMode ? (
               <form className="dashboard-form" onSubmit={createSprint}>
                 <h2>Create sprint</h2>
                 <label>
@@ -288,9 +510,23 @@ export default function AdminManagement({ mode }) {
             <section className="management-list">
               <div>
                 <p className="dashboard-eyebrow">Current workspace records</p>
-                <h2>{isSprintMode ? "Sprints" : "Scrum teams"}</h2>
+                <h2>{isUsersMode ? "Employees" : isSprintMode ? "Sprints" : "Scrum teams"}</h2>
               </div>
-              {items.map((item) => (
+              {isUsersMode ? users.map((user) => (
+                <article className="management-item" key={user.id}>
+                  <strong>{displayName(user)}</strong>
+                  <span>{user.email}</span>
+                  <small>{user.role}</small>
+                  <select
+                    value={user.role}
+                    onChange={(event) => changeUserRole(user.id, event.target.value)}
+                  >
+                    <option value="member">Member</option>
+                    <option value="developer">Developer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </article>
+              )) : items.map((item) => (
                 <article className="management-item" key={item.id}>
                   <strong>{item.name}</strong>
                   <span>{projects.find((project) => project.id === item.project_id)?.name || "Project"}</span>
@@ -298,7 +534,7 @@ export default function AdminManagement({ mode }) {
                   <small>{isSprintMode ? item.status : `${item.member_count} members`}</small>
                 </article>
               ))}
-              {items.length === 0 ? <p className="empty-column">No records yet</p> : null}
+              {(isUsersMode ? users.length : items.length) === 0 ? <p className="empty-column">No records yet</p> : null}
             </section>
           </section>
         ) : null}
