@@ -1,7 +1,6 @@
 .env
 .env.*
 .vercel
-frontend
 database
 logs
 uploads
